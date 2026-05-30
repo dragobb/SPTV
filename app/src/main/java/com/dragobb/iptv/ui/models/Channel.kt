@@ -7,6 +7,5 @@ data class Channel(
     val streamUrl: String,
     val category: String,
     val country: String,
-    val isFavorite: Boolean = false,
-    val isOnline: Boolean? = null // null = Checking, true = Online, false = Offline
+    val isFavorite: Boolean = false
 )

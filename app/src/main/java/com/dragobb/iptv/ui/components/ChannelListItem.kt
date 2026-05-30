@@ -7,14 +7,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -39,18 +37,12 @@ fun ChannelListItem(
     channel: Channel,
     onChannelClick: (Channel) -> Unit,
     onToggleFavorite: (Channel) -> Unit,
-    onAppear: (Channel) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(if (isPressed) 0.98f else 1f, label = "scale")
-
-    // Auto-trigger health check when item appears
-    LaunchedEffect(channel.streamUrl) {
-        onAppear(channel)
-    }
 
     Card(
         modifier = modifier
@@ -85,22 +77,6 @@ fun ChannelListItem(
                     error = painterResource(R.drawable.monitor),
                     modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.2f)),
                     contentScale = ContentScale.Fit
-                )
-                
-                // Health Dot
-                Box(
-                    modifier = Modifier
-                        .padding(6.dp)
-                        .size(6.dp)
-                        .background(
-                            color = when (channel.isOnline) {
-                                true -> Color(0xFF4CAF50) // Green
-                                false -> Color(0xFFF44336) // Red
-                                null -> Color(0xFF9E9E9E) // Grey (Checking)
-                            },
-                            shape = CircleShape
-                        )
-                        .align(Alignment.TopStart)
                 )
             }
 

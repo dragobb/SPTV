@@ -1,7 +1,6 @@
 package com.dragobb.iptv
 
 import android.app.Application
-import android.app.PictureInPictureParams
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
@@ -14,14 +13,10 @@ import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
@@ -63,7 +58,7 @@ import com.dragobb.iptv.ui.viewmodels.IptvViewModelFactory
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
-
+import android.app.PictureInPictureParams
 class MainActivity : ComponentActivity() {
     private var isCurrentlyPlaying by mutableStateOf(false)
     private var isSystemPiP by mutableStateOf(false)
@@ -162,7 +157,7 @@ fun IPTVApp(viewModel: IptvViewModel, isInSystemPiP: Boolean) {
     if (isInSystemPiP && selectedChannel != null) {
         VideoPlayer(
             exoPlayer = viewModel.exoPlayer,
-            channelName = selectedChannel?.name ?: "Unknown Channel", // Eto yung kulang
+            channelName = selectedChannel?.name ?: "Unknown Channel",
             isBuffering = isBuffering,
             errorMessage = errorMessage,
             onBack = { viewModel.selectChannel(null) },
@@ -235,8 +230,7 @@ fun IPTVApp(viewModel: IptvViewModel, isInSystemPiP: Boolean) {
                             onChannelClick = {},
                             onToggleFavorite = {},
                             onRefresh = { viewModel.refreshChannels() },
-                            onMenuClick = { scope.launch { drawerState.open() } },
-                            onCheckHealth = {}
+                            onMenuClick = { scope.launch { drawerState.open() } }
                         )
                         is IptvUiState.Success -> {
                             when (currentDestination) {
@@ -252,8 +246,7 @@ fun IPTVApp(viewModel: IptvViewModel, isInSystemPiP: Boolean) {
                                     onChannelClick = { viewModel.selectChannel(it) },
                                     onToggleFavorite = { viewModel.toggleFavorite(it) },
                                     onRefresh = { viewModel.refreshChannels() },
-                                    onMenuClick = { scope.launch { drawerState.open() } },
-                                    onCheckHealth = { viewModel.checkStreamHealth(it) }
+                                    onMenuClick = { scope.launch { drawerState.open() } }
                                 )
                                 AppDestinations.FAVORITES -> FavoritesScreen(favoriteChannels, {viewModel.selectChannel(it)}, {viewModel.toggleFavorite(it)}, {scope.launch { drawerState.open() }})
                                 AppDestinations.SETTINGS -> SettingsScreen(viewModel, {scope.launch { drawerState.open() }})
@@ -285,7 +278,7 @@ fun IPTVApp(viewModel: IptvViewModel, isInSystemPiP: Boolean) {
                         Box(
                             modifier = Modifier
                                 .align(Alignment.BottomEnd)
-                                .navigationBarsPadding() // Umiwas sa phone navigation buttons
+                                .navigationBarsPadding()
                                 .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
                                 .padding(16.dp)
                                 .width(220.dp)

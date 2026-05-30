@@ -50,8 +50,7 @@ fun HomeScreen(
     onChannelClick: (Channel) -> Unit,
     onToggleFavorite: (Channel) -> Unit,
     onRefresh: () -> Unit,
-    onMenuClick: () -> Unit,
-    onCheckHealth: (Channel) -> Unit
+    onMenuClick: () -> Unit
 ) {
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
     val pullToRefreshState = rememberPullToRefreshState()
@@ -154,14 +153,14 @@ fun HomeScreen(
                         // --- ROW VIEW (Netflix Style) ---
                         if (recentChannels.isNotEmpty() && selectedCategory == "All" && searchQuery.isEmpty()) {
                             item(key = "recently_watched") {
-                                ChannelRow("Recently Watched", recentChannels, onChannelClick, onToggleFavorite, onCheckHealth)
+                                ChannelRow("Recently Watched", recentChannels, onChannelClick, onToggleFavorite)
                             }
                         }
 
                         groupedChannels.forEach { (category, categoryChannels) ->
                             if (categoryChannels.isNotEmpty()) {
                                 item(key = category) {
-                                    ChannelRow(category, categoryChannels, onChannelClick, onToggleFavorite, onCheckHealth)
+                                    ChannelRow(category, categoryChannels, onChannelClick, onToggleFavorite)
                                 }
                             }
                         }
@@ -173,8 +172,7 @@ fun HomeScreen(
                                     ChannelListItem(
                                         channel = channel,
                                         onChannelClick = onChannelClick,
-                                        onToggleFavorite = onToggleFavorite,
-                                        onAppear = onCheckHealth
+                                        onToggleFavorite = onToggleFavorite
                                     )
                                 }
                             }
@@ -231,8 +229,7 @@ fun ChannelRow(
     title: String,
     channels: List<Channel>,
     onChannelClick: (Channel) -> Unit,
-    onToggleFavorite: (Channel) -> Unit,
-    onCheckHealth: (Channel) -> Unit
+    onToggleFavorite: (Channel) -> Unit
 ) {
     Column(modifier = Modifier.padding(vertical = 12.dp)) {
         Text(
@@ -247,7 +244,6 @@ fun ChannelRow(
                     channel = channel,
                     onChannelClick = onChannelClick,
                     onToggleFavorite = onToggleFavorite,
-                    onAppear = onCheckHealth,
                     modifier = Modifier.width(220.dp)
                 )
             }

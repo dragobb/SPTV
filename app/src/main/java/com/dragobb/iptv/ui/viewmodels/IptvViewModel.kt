@@ -19,8 +19,6 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.net.HttpURLConnection
-import java.net.URL
 
 sealed class IptvUiState {
     object Loading : IptvUiState()
@@ -72,8 +70,6 @@ class IptvViewModel(
     val viewMode = MutableStateFlow(ViewMode.GRID)
     val savedPin = MutableStateFlow("1234")
 
-    private val _onlineStatusMap = MutableStateFlow<Map<String, Boolean>>(emptyMap())
-
     val exoPlayer: ExoPlayer = ExoPlayer.Builder(application).apply {
         val dataSourceFactory = DefaultHttpDataSource.Factory()
             .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
@@ -117,8 +113,7 @@ class IptvViewModel(
         manualCountryOverride,
         isSafeMode,
         _selectedCategory,
-        _searchQuery.debounce(300),
-        _onlineStatusMap
+        _searchQuery.debounce(300)
     ) { args ->
         val cachedChannels = args[0] as List<Channel>
         val favorites = args[1] as List<Channel>
@@ -128,7 +123,6 @@ class IptvViewModel(
         val safeMode = args[5] as Boolean
         val category = args[6] as String
         val query = args[7] as String
-        val statusMap = args[8] as Map<String, Boolean>
 
         when {
             error != null && _selectedChannel.value == null -> IptvUiState.Error(error)
@@ -140,7 +134,7 @@ class IptvViewModel(
                     val matchesQuery = ch.name.contains(query, ignoreCase = true)
                     val matchesCategory = if (category == "All") true else ch.category == category
                     matchesSafe && matchesQuery && matchesCategory
-                }.map { it.copy(isFavorite = favoriteIds.contains(it.id), isOnline = statusMap[it.streamUrl]) }
+                }.map { it.copy(isFavorite = favoriteIds.contains(it.id)) }
                 val categoriesList = listOf("All") + cachedChannels.map { it.category }.distinct().sorted()
                 IptvUiState.Success(filtered, override ?: "Detected", categoriesList)
             }
@@ -182,39 +176,6 @@ class IptvViewModel(
             } finally {
                 _isLoading.value = false
             }
-        }
-    }
-
-    fun checkStreamHealth(channel: Channel) {
-        if (_onlineStatusMap.value.containsKey(channel.streamUrl)) return
-        viewModelScope.launch {
-            val isOnline = withContext(Dispatchers.IO) {
-                var conn: HttpURLConnection? = null
-                try {
-                    val url = URL(channel.streamUrl)
-                    conn = url.openConnection() as HttpURLConnection
-                    conn.requestMethod = "HEAD"
-                    conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-                    conn.connectTimeout = 5000
-                    conn.readTimeout = 5000
-                    conn.instanceFollowRedirects = true
-                    
-                    var responseCode = conn.responseCode
-                    if (responseCode == 405 || responseCode == 501) {
-                        conn.disconnect()
-                        conn = url.openConnection() as HttpURLConnection
-                        conn.requestMethod = "GET"
-                        conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-                        conn.connectTimeout = 5000
-                        conn.readTimeout = 5000
-                        responseCode = conn.responseCode
-                    }
-                    
-                    val contentType = conn.contentType ?: ""
-                    responseCode in 200..399 && !contentType.contains("text/html", ignoreCase = true)
-                } catch (e: Exception) { false } finally { conn?.disconnect() }
-            }
-            _onlineStatusMap.value = _onlineStatusMap.value + (channel.streamUrl to isOnline)
         }
     }
 
