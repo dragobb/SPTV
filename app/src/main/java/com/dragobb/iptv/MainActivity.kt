@@ -162,6 +162,7 @@ fun IPTVApp(viewModel: IptvViewModel, isInSystemPiP: Boolean) {
     if (isInSystemPiP && selectedChannel != null) {
         VideoPlayer(
             exoPlayer = viewModel.exoPlayer,
+            channelName = selectedChannel?.name ?: "Unknown Channel", // Eto yung kulang
             isBuffering = isBuffering,
             errorMessage = errorMessage,
             onBack = { viewModel.selectChannel(null) },
@@ -268,6 +269,7 @@ fun IPTVApp(viewModel: IptvViewModel, isInSystemPiP: Boolean) {
                     if (!isPlayerMinimized) {
                         VideoPlayer(
                             exoPlayer = viewModel.exoPlayer,
+                            channelName = selectedChannel?.name ?: "Unknown Channel",
                             isBuffering = isBuffering,
                             errorMessage = errorMessage,
                             onBack = { viewModel.setPlayerMinimized(true) },
@@ -281,8 +283,16 @@ fun IPTVApp(viewModel: IptvViewModel, isInSystemPiP: Boolean) {
                         val screenH = with(density) { config.screenHeightDp.dp.toPx() }
 
                         Box(
-                            modifier = Modifier.offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
-                                .padding(16.dp).width(220.dp).height(124.dp).clip(RoundedCornerShape(16.dp)).background(Color.Black).border(1.dp, Color.White.copy(0.2f), RoundedCornerShape(16.dp))
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .navigationBarsPadding() // Umiwas sa phone navigation buttons
+                                .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
+                                .padding(16.dp)
+                                .width(220.dp)
+                                .height(124.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(Color.Black)
+                                .border(1.dp, Color.White.copy(0.2f), RoundedCornerShape(16.dp))
                                 .pointerInput(Unit) {
                                     detectDragGestures { change, dragAmount ->
                                         change.consume()
@@ -290,10 +300,11 @@ fun IPTVApp(viewModel: IptvViewModel, isInSystemPiP: Boolean) {
                                         offsetY = (offsetY + dragAmount.y).coerceIn(-screenH + 400f, 0f)
                                     }
                                 }
-                                .clickable { viewModel.setPlayerMinimized(false) }.align(Alignment.BottomEnd)
+                                .clickable { viewModel.setPlayerMinimized(false) }
                         ) {
                             VideoPlayer(
                                 exoPlayer = viewModel.exoPlayer,
+                                channelName = selectedChannel?.name ?: "Unknown Channel",
                                 isBuffering = isBuffering,
                                 errorMessage = errorMessage,
                                 isMinimized = true,

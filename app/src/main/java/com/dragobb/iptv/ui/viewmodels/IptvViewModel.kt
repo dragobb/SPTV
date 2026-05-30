@@ -140,7 +140,7 @@ class IptvViewModel(
                     val matchesQuery = ch.name.contains(query, ignoreCase = true)
                     val matchesCategory = if (category == "All") true else ch.category == category
                     matchesSafe && matchesQuery && matchesCategory
-                }.map { it.copy(isFavorite = favoriteIds.contains(it.id), isOnline = statusMap[it.streamUrl] ?: true) }
+                }.map { it.copy(isFavorite = favoriteIds.contains(it.id), isOnline = statusMap[it.streamUrl]) }
                 val categoriesList = listOf("All") + cachedChannels.map { it.category }.distinct().sorted()
                 IptvUiState.Success(filtered, override ?: "Detected", categoriesList)
             }
@@ -200,8 +200,6 @@ class IptvViewModel(
                     conn.instanceFollowRedirects = true
                     
                     var responseCode = conn.responseCode
-                    
-                    // Kung hindi supported ang HEAD, try GET
                     if (responseCode == 405 || responseCode == 501) {
                         conn.disconnect()
                         conn = url.openConnection() as HttpURLConnection
@@ -213,16 +211,8 @@ class IptvViewModel(
                     }
                     
                     val contentType = conn.contentType ?: ""
-                    val isSuccess = responseCode in 200..399
-                    // Kapag HTML, kadalasan error page o expired link 'yan, hindi totoong stream.
-                    val isActuallyStream = !contentType.contains("text/html", ignoreCase = true)
-                    
-                    isSuccess && isActuallyStream
-                } catch (e: Exception) {
-                    false
-                } finally {
-                    conn?.disconnect()
-                }
+                    responseCode in 200..399 && !contentType.contains("text/html", ignoreCase = true)
+                } catch (e: Exception) { false } finally { conn?.disconnect() }
             }
             _onlineStatusMap.value = _onlineStatusMap.value + (channel.streamUrl to isOnline)
         }

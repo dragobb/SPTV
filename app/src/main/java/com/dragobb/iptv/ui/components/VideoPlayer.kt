@@ -7,8 +7,10 @@ import android.content.pm.ActivityInfo
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.annotation.OptIn
+import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -19,21 +21,27 @@ import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
-import com.dragobb.iptv.ui.models.Channel
+import kotlinx.coroutines.delay
 
 @OptIn(UnstableApi::class)
 @Composable
 fun VideoPlayer(
     exoPlayer: ExoPlayer,
+    channelName: String,
     isBuffering: Boolean,
     errorMessage: String?,
     onBack: () -> Unit,
@@ -44,12 +52,42 @@ fun VideoPlayer(
     onClearError: () -> Unit = {}
 ) {
     val context = LocalContext.current
-    var isFullscreen by remember { mutableStateOf(false) }
+    var isFullscreen by rememberSaveable { mutableStateOf(false) }
+    var showControls by remember { mutableStateOf(true) }
+
+    // Auto-hide controls logic
+    LaunchedEffect(showControls, isBuffering) {
+        if (showControls && !isBuffering && !isMinimized) {
+            delay(3500) // Hide after 3.5 seconds
+            showControls = false
+        }
+    }
+
+    // Immersive Mode Handler
+    val activity = context.findActivity()
+    val window = activity?.window
+    if (window != null && !isMinimized) {
+        val controller = remember(window) { WindowInsetsControllerCompat(window, window.decorView) }
+        LaunchedEffect(isFullscreen, showControls) {
+            if (isFullscreen && !showControls) {
+                controller.hide(WindowInsetsCompat.Type.systemBars())
+                controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            } else {
+                controller.show(WindowInsetsCompat.Type.systemBars())
+            }
+        }
+    }
 
     Box(modifier = modifier
         .fillMaxSize()
         .background(Color.Black)
-        .then(if (isMinimized && onExpand != null) Modifier.clickable { onExpand() } else Modifier)
+        .clickable(
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null
+        ) { 
+            if (!isMinimized) showControls = !showControls 
+            else onExpand?.invoke()
+        }
     ) {
         AndroidView(
             factory = { ctx ->
@@ -76,30 +114,60 @@ fun VideoPlayer(
             )
         }
 
-        // Overlay Controls
-        if (!isMinimized) {
-            Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-                IconButton(
-                    onClick = onBack,
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .background(Color.Black.copy(0.4f), shape = RoundedCornerShape(12.dp))
+        // --- Overlay Controls ---
+        AnimatedVisibility(
+            visible = showControls && !isMinimized,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically(),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Box(modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(0.3f))
+                .safeDrawingPadding()
+                .padding(16.dp)
+            ) {
+                // Top controls (Back + Name)
+                Row(
+                    modifier = Modifier.fillMaxWidth().align(Alignment.TopStart),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White)
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .background(Color.Black.copy(0.5f), shape = RoundedCornerShape(12.dp))
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White)
+                    }
+                    
+                    Spacer(Modifier.width(16.dp))
+                    
+                    Text(
+                        text = channelName,
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
                 }
 
+                // Fullscreen Button
                 IconButton(
                     onClick = {
                         isFullscreen = !isFullscreen
-                        val activity = context.findActivity()
-                        activity?.requestedOrientation = if (isFullscreen) 
+                        val act = context.findActivity()
+                        act?.requestedOrientation = if (isFullscreen) 
                             ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE 
                         else 
                             ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
                     },
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
-                        .background(Color.Black.copy(0.4f), shape = RoundedCornerShape(12.dp))
+                        .size(48.dp)
+                        .background(Color.Black.copy(0.5f), shape = RoundedCornerShape(12.dp))
                 ) {
                     Icon(
                         if (isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen, 
@@ -108,8 +176,10 @@ fun VideoPlayer(
                     )
                 }
             }
-        } else {
-            // Minimized controls
+        }
+
+        // Minimized Mode Controls
+        if (isMinimized) {
             Box(modifier = Modifier.fillMaxSize().padding(4.dp)) {
                 if (onClose != null) {
                     IconButton(
