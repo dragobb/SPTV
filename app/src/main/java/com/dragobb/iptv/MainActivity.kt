@@ -101,14 +101,13 @@ class MainActivity : ComponentActivity() {
             SideEffect { isCurrentlyPlaying = selectedChannel != null }
 
             IPTVTheme {
-                IPTVApp(viewModel, isSystemPiP)
+                IPTVApp(
+                    viewModel = viewModel,
+                    isInSystemPiP = isSystemPiP,
+                    onEnterPiP = { enterPiPMode() }
+                )
             }
         }
-    }
-
-    override fun onUserLeaveHint() {
-        if (isCurrentlyPlaying) enterPiPMode()
-        super.onUserLeaveHint()
     }
 
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
@@ -128,7 +127,11 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(FlowPreview::class, UnstableApi::class)
 @Composable
-fun IPTVApp(viewModel: IptvViewModel, isInSystemPiP: Boolean) {
+fun IPTVApp(
+    viewModel: IptvViewModel,
+    isInSystemPiP: Boolean,
+    onEnterPiP: () -> Unit
+) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val selectedChannel by viewModel.selectedChannel.collectAsStateWithLifecycle()
     val favoriteChannels by viewModel.favoriteChannels.collectAsStateWithLifecycle()
@@ -267,6 +270,7 @@ fun IPTVApp(viewModel: IptvViewModel, isInSystemPiP: Boolean) {
                             errorMessage = errorMessage,
                             onBack = { viewModel.setPlayerMinimized(true) },
                             onClearError = { viewModel.clearError() },
+                            onMiniPlayer = onEnterPiP,
                             modifier = Modifier.fillMaxSize()
                         )
                     } else {

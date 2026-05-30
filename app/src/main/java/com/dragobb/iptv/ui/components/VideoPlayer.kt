@@ -15,10 +15,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Fullscreen
-import androidx.compose.material.icons.filled.FullscreenExit
-import androidx.compose.material.icons.filled.OpenInFull
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -34,6 +31,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.delay
 
@@ -49,11 +47,13 @@ fun VideoPlayer(
     isMinimized: Boolean = false,
     onClose: (() -> Unit)? = null,
     onExpand: (() -> Unit)? = null,
-    onClearError: () -> Unit = {}
+    onClearError: () -> Unit = {},
+    onMiniPlayer: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     var isFullscreen by rememberSaveable { mutableStateOf(false) }
     var showControls by remember { mutableStateOf(true) }
+    var resizeMode by rememberSaveable { mutableIntStateOf(AspectRatioFrameLayout.RESIZE_MODE_FIT) }
 
     // Auto-hide controls logic
     LaunchedEffect(showControls, isBuffering) {
@@ -94,6 +94,7 @@ fun VideoPlayer(
                 PlayerView(ctx).apply {
                     player = exoPlayer
                     useController = false
+                    this.resizeMode = resizeMode
                     layoutParams = FrameLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT
@@ -102,6 +103,7 @@ fun VideoPlayer(
             },
             update = { playerView ->
                 playerView.player = exoPlayer
+                playerView.resizeMode = resizeMode
             },
             modifier = Modifier.fillMaxSize()
         )
@@ -154,26 +156,59 @@ fun VideoPlayer(
                     )
                 }
 
-                // Fullscreen Button
-                IconButton(
-                    onClick = {
-                        isFullscreen = !isFullscreen
-                        val act = context.findActivity()
-                        act?.requestedOrientation = if (isFullscreen) 
-                            ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE 
-                        else 
-                            ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-                    },
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .size(48.dp)
-                        .background(Color.Black.copy(0.5f), shape = RoundedCornerShape(12.dp))
+                // Bottom Right controls
+                Row(
+                    modifier = Modifier.align(Alignment.BottomEnd),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Icon(
-                        if (isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen, 
-                        "Fullscreen", 
-                        tint = Color.White
-                    )
+                    // Scale Button
+                    IconButton(
+                        onClick = {
+                            resizeMode = when (resizeMode) {
+                                AspectRatioFrameLayout.RESIZE_MODE_FIT -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+                                AspectRatioFrameLayout.RESIZE_MODE_FILL -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                                else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                            }
+                        },
+                        modifier = Modifier
+                            .size(48.dp)
+                            .background(Color.Black.copy(0.5f), shape = RoundedCornerShape(12.dp))
+                    ) {
+                        Icon(Icons.Default.AspectRatio, "Scale", tint = Color.White)
+                    }
+
+                    // MiniPlayer Button
+                    if (onMiniPlayer != null) {
+                        IconButton(
+                            onClick = onMiniPlayer,
+                            modifier = Modifier
+                                .size(48.dp)
+                                .background(Color.Black.copy(0.5f), shape = RoundedCornerShape(12.dp))
+                        ) {
+                            Icon(Icons.Default.PictureInPicture, "Miniplayer", tint = Color.White)
+                        }
+                    }
+
+                    // Fullscreen Button
+                    IconButton(
+                        onClick = {
+                            isFullscreen = !isFullscreen
+                            val act = context.findActivity()
+                            act?.requestedOrientation = if (isFullscreen) 
+                                ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE 
+                            else 
+                                ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                        },
+                        modifier = Modifier
+                            .size(48.dp)
+                            .background(Color.Black.copy(0.5f), shape = RoundedCornerShape(12.dp))
+                    ) {
+                        Icon(
+                            if (isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen, 
+                            "Fullscreen", 
+                            tint = Color.White
+                        )
+                    }
                 }
             }
         }
