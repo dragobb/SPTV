@@ -6,17 +6,17 @@
 
     <application
         android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@drawable/tv"
         android:label="StairPlay TV"
-        android:roundIcon="@mipmap/ic_launcher_round"
+        android:roundIcon="@drawable/tv"
         android:supportsRtl="true"
-        android:theme="@style/Theme.IPTV"
+        android:theme="@style/Theme.App.Starting"
         android:usesCleartextTraffic="true">
 
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:theme="@style/Theme.IPTV"
+            android:theme="@style/Theme.App.Starting"
             android:supportsPictureInPicture="true"
             android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation">
             <intent-filter>

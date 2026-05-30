@@ -28,7 +28,7 @@ class IptvRepository(private val context: Context, private val channelDao: Chann
         }
     }
 
-    suspend fun refreshChannels(overrideCountryCode: String? = null) = withContext(Dispatchers.IO) {
+    suspend fun refreshChannels(overrideCountryCode: String? = null, customUrls: List<String> = emptyList()) = withContext(Dispatchers.IO) {
         val countryCode = (overrideCountryCode ?: getDetectedCountryCode()).lowercase()
         
         val sources = mutableListOf<Pair<String, String?>>(
@@ -36,7 +36,12 @@ class IptvRepository(private val context: Context, private val channelDao: Chann
         )
         
         if (countryCode == "ph") {
-            sources.add("https://raw.githubusercontent.com/Harleythetech/IPHTV/refs/heads/main/ph.m3u" to "Philippines")
+            sources.add("https://raw.githubusercontent.com/Harleythetech/IPHTV/refs/heads/main/ph.m3u" to "PHILIPPINES")
+        }
+
+        // Add custom playlists
+        customUrls.forEach { url ->
+            sources.add(url to "Custom Playlist")
         }
 
         val remoteChannels = sources.map { (url, forcedCategory) ->

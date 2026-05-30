@@ -12,6 +12,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.dragobb.iptv.ui.components.ChannelCard
@@ -25,18 +27,23 @@ fun FavoritesScreen(
     onToggleFavorite: (Channel) -> Unit,
     onMenuClick: () -> Unit
 ) {
+    val haptic = LocalHapticFeedback.current
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
                     Text(
                         "My Favorites",
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.Black,
                         style = MaterialTheme.typography.titleLarge
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onMenuClick) {
+                    IconButton(onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onMenuClick()
+                    }) {
                         Icon(Icons.Default.Menu, contentDescription = "Menu")
                     }
                 },
@@ -54,7 +61,7 @@ fun FavoritesScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.padding(innerPadding)
+                modifier = Modifier.padding(innerPadding).fillMaxSize()
             ) {
                 items(favoriteChannels, key = { it.id }) { channel ->
                     ChannelCard(
@@ -79,7 +86,7 @@ fun EmptyFavoritesState() {
             imageVector = Icons.Default.Favorite,
             contentDescription = null,
             modifier = Modifier.size(80.dp),
-            tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+            tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(

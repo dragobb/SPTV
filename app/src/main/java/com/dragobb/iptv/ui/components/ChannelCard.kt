@@ -7,12 +7,14 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -38,12 +40,18 @@ fun ChannelCard(
     channel: Channel,
     onChannelClick: (Channel) -> Unit,
     onToggleFavorite: (Channel) -> Unit,
+    onAppear: (Channel) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(if (isPressed) 0.96f else 1f, label = "scale")
+
+    // Auto-trigger health check when card appears
+    LaunchedEffect(channel.streamUrl) {
+        onAppear(channel)
+    }
 
     Card(
         modifier = modifier
@@ -62,7 +70,7 @@ fun ChannelCard(
                 onChannelClick(channel)
             },
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.1f))
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             AsyncImage(
@@ -74,16 +82,28 @@ fun ChannelCard(
                 contentScale = ContentScale.Crop
             )
 
-            // Gradient Overlay
+            // Dynamic Gradient Overlay
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
                         Brush.verticalGradient(
-                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f)),
+                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.9f)),
                             startY = 100f
                         )
                     )
+            )
+
+            // --- Status Health Dot ---
+            Box(
+                modifier = Modifier
+                    .padding(10.dp)
+                    .size(8.dp)
+                    .background(
+                        color = if (channel.isOnline) Color(0xFF4CAF50) else Color(0xFFF44336),
+                        shape = CircleShape
+                    )
+                    .align(Alignment.TopStart)
             )
 
             // Favorite Button
@@ -96,13 +116,13 @@ fun ChannelCard(
                     .align(Alignment.TopEnd)
                     .padding(8.dp)
                     .size(32.dp)
-                    .background(color = Color.Black.copy(alpha = 0.3f), shape = RoundedCornerShape(8.dp))
+                    .background(color = Color.Black.copy(alpha = 0.4f), shape = RoundedCornerShape(8.dp))
             ) {
                 Icon(
                     imageVector = if (channel.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                     contentDescription = "Favorite",
                     tint = if (channel.isFavorite) MaterialTheme.colorScheme.tertiary else Color.White,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(18.dp)
                 )
             }
 

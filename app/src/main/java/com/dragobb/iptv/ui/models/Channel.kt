@@ -1,8 +1,5 @@
 package com.dragobb.iptv.ui.models
 
-import androidx.compose.runtime.Immutable
-
-@Immutable
 data class Channel(
     val id: String,
     val name: String,
@@ -10,5 +7,6 @@ data class Channel(
     val streamUrl: String,
     val category: String,
     val country: String,
-    val isFavorite: Boolean = false
+    val isFavorite: Boolean = false,
+    val isOnline: Boolean = true // Default to true, updated by health check
 )
