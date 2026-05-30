@@ -25,10 +25,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.media3.common.MediaItem
-import androidx.media3.common.PlaybackException
-import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
@@ -37,54 +33,18 @@ import com.dragobb.iptv.ui.models.Channel
 @OptIn(UnstableApi::class)
 @Composable
 fun VideoPlayer(
-    channel: Channel,
+    exoPlayer: ExoPlayer,
+    isBuffering: Boolean,
+    errorMessage: String?,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     isMinimized: Boolean = false,
     onClose: (() -> Unit)? = null,
-    onExpand: (() -> Unit)? = null
+    onExpand: (() -> Unit)? = null,
+    onClearError: () -> Unit = {}
 ) {
     val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
-
-    var isBuffering by remember { mutableStateOf(true) }
     var isFullscreen by remember { mutableStateOf(false) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
-
-    val exoPlayer = remember {
-        ExoPlayer.Builder(context).build().apply {
-            playWhenReady = true
-            addListener(object : Player.Listener {
-                override fun onPlaybackStateChanged(playbackState: Int) {
-                    isBuffering = playbackState == Player.STATE_BUFFERING || playbackState == Player.STATE_IDLE
-                }
-
-                override fun onPlayerError(error: PlaybackException) {
-                    isBuffering = false
-                    errorMessage = when (error.errorCode) {
-                        PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS -> "Server Error: Channel link expired or blocked."
-                        PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED -> "No internet connection."
-                        PlaybackException.ERROR_CODE_DECODER_INIT_FAILED -> "Video format not supported."
-                        else -> "Playback Error: ${error.localizedMessage}"
-                    }
-                }
-            })
-        }
-    }
-
-    LaunchedEffect(channel.streamUrl) {
-        errorMessage = null
-        val mediaItem = MediaItem.fromUri(channel.streamUrl)
-        exoPlayer.setMediaItem(mediaItem)
-        exoPlayer.prepare()
-    }
-
-    DisposableEffect(lifecycleOwner) {
-        onDispose {
-            exoPlayer.release()
-            context.findActivity()?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-        }
-    }
 
     Box(modifier = modifier
         .fillMaxSize()
@@ -101,6 +61,9 @@ fun VideoPlayer(
                         ViewGroup.LayoutParams.MATCH_PARENT
                     )
                 }
+            },
+            update = { playerView ->
+                playerView.player = exoPlayer
             },
             modifier = Modifier.fillMaxSize()
         )
@@ -120,7 +83,7 @@ fun VideoPlayer(
                     onClick = onBack,
                     modifier = Modifier
                         .align(Alignment.TopStart)
-                        .background(Color.Black.copy(0.5f), shape = RoundedCornerShape(12.dp))
+                        .background(Color.Black.copy(0.4f), shape = RoundedCornerShape(12.dp))
                 ) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White)
                 }
@@ -129,17 +92,24 @@ fun VideoPlayer(
                     onClick = {
                         isFullscreen = !isFullscreen
                         val activity = context.findActivity()
-                        activity?.requestedOrientation = if (isFullscreen) ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                        activity?.requestedOrientation = if (isFullscreen) 
+                            ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE 
+                        else 
+                            ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
                     },
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
-                        .background(Color.Black.copy(0.5f), shape = RoundedCornerShape(12.dp))
+                        .background(Color.Black.copy(0.4f), shape = RoundedCornerShape(12.dp))
                 ) {
-                    Icon(if (isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen, "Fullscreen", tint = Color.White)
+                    Icon(
+                        if (isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen, 
+                        "Fullscreen", 
+                        tint = Color.White
+                    )
                 }
             }
         } else {
-            // Minimized controls (Close button only usually)
+            // Minimized controls
             Box(modifier = Modifier.fillMaxSize().padding(4.dp)) {
                 if (onClose != null) {
                     IconButton(
@@ -147,7 +117,7 @@ fun VideoPlayer(
                         modifier = Modifier
                             .size(32.dp)
                             .align(Alignment.TopEnd)
-                            .background(Color.Black.copy(0.5f), shape = RoundedCornerShape(8.dp))
+                            .background(Color.Black.copy(0.6f), shape = RoundedCornerShape(8.dp))
                     ) {
                         Icon(Icons.Default.Close, "Close", tint = Color.White, modifier = Modifier.size(16.dp))
                     }
@@ -159,7 +129,7 @@ fun VideoPlayer(
                         modifier = Modifier
                             .size(32.dp)
                             .align(Alignment.BottomEnd)
-                            .background(Color.Black.copy(0.5f), shape = RoundedCornerShape(8.dp))
+                            .background(Color.Black.copy(0.6f), shape = RoundedCornerShape(8.dp))
                     ) {
                         Icon(Icons.Default.OpenInFull, "Expand", tint = Color.White, modifier = Modifier.size(16.dp))
                     }
@@ -170,11 +140,14 @@ fun VideoPlayer(
         // Error Dialog
         if (errorMessage != null && !isMinimized) {
             AlertDialog(
-                onDismissRequest = { errorMessage = null },
+                onDismissRequest = { onClearError() },
                 title = { Text("Playback Error") },
-                text = { Text(errorMessage!!) },
+                text = { Text(errorMessage) },
                 confirmButton = {
-                    Button(onClick = { errorMessage = null; onBack() }) { Text("OK") }
+                    Button(onClick = { 
+                        onClearError()
+                        onBack() 
+                    }) { Text("OK") }
                 },
                 containerColor = MaterialTheme.colorScheme.surface,
                 shape = RoundedCornerShape(24.dp)

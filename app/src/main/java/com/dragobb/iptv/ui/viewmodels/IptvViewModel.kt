@@ -44,6 +44,9 @@ class IptvViewModel(
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage = _errorMessage.asStateFlow()
 
+    private val _isBuffering = MutableStateFlow(false)
+    val isBuffering = _isBuffering.asStateFlow()
+
     private val _selectedChannel = MutableStateFlow<Channel?>(null)
     val selectedChannel = _selectedChannel.asStateFlow()
 
@@ -81,8 +84,18 @@ class IptvViewModel(
     }.build().apply {
         playWhenReady = true
         addListener(object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                _isBuffering.value = playbackState == Player.STATE_BUFFERING || (playbackState == Player.STATE_IDLE && _selectedChannel.value != null)
+            }
+
             override fun onPlayerError(error: PlaybackException) {
-                _errorMessage.value = "Playback Error: ${error.localizedMessage ?: "Stream offline or invalid link"}"
+                _isBuffering.value = false
+                _errorMessage.value = when (error.errorCode) {
+                    PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS -> "Server Error: Channel link expired or blocked."
+                    PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED -> "No internet connection."
+                    PlaybackException.ERROR_CODE_DECODER_INIT_FAILED -> "Video format not supported."
+                    else -> "Playback Error: ${error.localizedMessage ?: "Stream offline"}"
+                }
             }
         })
     }
@@ -118,7 +131,7 @@ class IptvViewModel(
         val statusMap = args[8] as Map<String, Boolean>
 
         when {
-            error != null -> IptvUiState.Error(error)
+            error != null && _selectedChannel.value == null -> IptvUiState.Error(error)
             loading && cachedChannels.isEmpty() -> IptvUiState.Loading
             else -> {
                 val favoriteIds = favorites.map { it.id }.toSet()
@@ -176,16 +189,40 @@ class IptvViewModel(
         if (_onlineStatusMap.value.containsKey(channel.streamUrl)) return
         viewModelScope.launch {
             val isOnline = withContext(Dispatchers.IO) {
+                var conn: HttpURLConnection? = null
                 try {
                     val url = URL(channel.streamUrl)
-                    val conn = url.openConnection() as HttpURLConnection
-                    conn.requestMethod = "GET"
+                    conn = url.openConnection() as HttpURLConnection
+                    conn.requestMethod = "HEAD"
                     conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-                    conn.connectTimeout = 8000
-                    conn.readTimeout = 8000
-                    val responseCode = conn.responseCode
-                    responseCode in 200..399
-                } catch (e: Exception) { false }
+                    conn.connectTimeout = 5000
+                    conn.readTimeout = 5000
+                    conn.instanceFollowRedirects = true
+                    
+                    var responseCode = conn.responseCode
+                    
+                    // Kung hindi supported ang HEAD, try GET
+                    if (responseCode == 405 || responseCode == 501) {
+                        conn.disconnect()
+                        conn = url.openConnection() as HttpURLConnection
+                        conn.requestMethod = "GET"
+                        conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                        conn.connectTimeout = 5000
+                        conn.readTimeout = 5000
+                        responseCode = conn.responseCode
+                    }
+                    
+                    val contentType = conn.contentType ?: ""
+                    val isSuccess = responseCode in 200..399
+                    // Kapag HTML, kadalasan error page o expired link 'yan, hindi totoong stream.
+                    val isActuallyStream = !contentType.contains("text/html", ignoreCase = true)
+                    
+                    isSuccess && isActuallyStream
+                } catch (e: Exception) {
+                    false
+                } finally {
+                    conn?.disconnect()
+                }
             }
             _onlineStatusMap.value = _onlineStatusMap.value + (channel.streamUrl to isOnline)
         }
@@ -196,6 +233,7 @@ class IptvViewModel(
         _selectedChannel.value = channel
         _errorMessage.value = null
         if (channel != null) {
+            _isBuffering.value = true
             _isPlayerMinimized.value = false
             val mediaItem = MediaItem.Builder()
                 .setUri(channel.streamUrl)
@@ -208,6 +246,7 @@ class IptvViewModel(
         } else {
             exoPlayer.stop()
             exoPlayer.clearMediaItems()
+            _isBuffering.value = false
         }
     }
 

@@ -93,7 +93,11 @@ fun ChannelListItem(
                         .padding(6.dp)
                         .size(6.dp)
                         .background(
-                            color = if (channel.isOnline) Color(0xFF4CAF50) else Color(0xFFF44336),
+                            color = when (channel.isOnline) {
+                                true -> Color(0xFF4CAF50) // Green
+                                false -> Color(0xFFF44336) // Red
+                                null -> Color(0xFF9E9E9E) // Grey (Checking)
+                            },
                             shape = CircleShape
                         )
                         .align(Alignment.TopStart)

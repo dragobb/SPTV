@@ -142,6 +142,8 @@ fun IPTVApp(viewModel: IptvViewModel, isInSystemPiP: Boolean) {
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val isPlayerMinimized by viewModel.isPlayerMinimized.collectAsStateWithLifecycle()
     val viewMode by viewModel.viewMode.collectAsStateWithLifecycle()
+    val isBuffering by viewModel.isBuffering.collectAsStateWithLifecycle()
+    val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
 
     var currentDestination by remember { mutableStateOf(AppDestinations.HOME) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -159,9 +161,11 @@ fun IPTVApp(viewModel: IptvViewModel, isInSystemPiP: Boolean) {
 
     if (isInSystemPiP && selectedChannel != null) {
         VideoPlayer(
-            channel = selectedChannel!!,
-            isMinimized = false,
+            exoPlayer = viewModel.exoPlayer,
+            isBuffering = isBuffering,
+            errorMessage = errorMessage,
             onBack = { viewModel.selectChannel(null) },
+            onClearError = { viewModel.clearError() },
             modifier = Modifier.fillMaxSize()
         )
     } else {
@@ -263,9 +267,11 @@ fun IPTVApp(viewModel: IptvViewModel, isInSystemPiP: Boolean) {
                 if (selectedChannel != null) {
                     if (!isPlayerMinimized) {
                         VideoPlayer(
-                            channel = selectedChannel!!,
-                            isMinimized = false,
+                            exoPlayer = viewModel.exoPlayer,
+                            isBuffering = isBuffering,
+                            errorMessage = errorMessage,
                             onBack = { viewModel.setPlayerMinimized(true) },
+                            onClearError = { viewModel.clearError() },
                             modifier = Modifier.fillMaxSize()
                         )
                     } else {
@@ -287,7 +293,9 @@ fun IPTVApp(viewModel: IptvViewModel, isInSystemPiP: Boolean) {
                                 .clickable { viewModel.setPlayerMinimized(false) }.align(Alignment.BottomEnd)
                         ) {
                             VideoPlayer(
-                                channel = selectedChannel!!,
+                                exoPlayer = viewModel.exoPlayer,
+                                isBuffering = isBuffering,
+                                errorMessage = errorMessage,
                                 isMinimized = true,
                                 onBack = { viewModel.setPlayerMinimized(false) },
                                 onClose = { viewModel.selectChannel(null) },
