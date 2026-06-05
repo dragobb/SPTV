@@ -30,11 +30,11 @@ class IptvRepository(private val context: Context, private val channelDao: Chann
 
     suspend fun refreshChannels(overrideCountryCode: String? = null, customUrls: List<String> = emptyList()) = withContext(Dispatchers.IO) {
         val countryCode = (overrideCountryCode ?: getDetectedCountryCode()).lowercase()
-        
+
         val sources = mutableListOf<Pair<String, String?>>(
             "https://iptv-org.github.io/iptv/countries/$countryCode.m3u" to null
         )
-        
+
         if (countryCode == "ph") {
             sources.add("https://raw.githubusercontent.com/Harleythetech/IPHTV/refs/heads/main/ph.m3u" to "PHILIPPINES")
         }
@@ -48,9 +48,37 @@ class IptvRepository(private val context: Context, private val channelDao: Chann
             async {
                 try {
                     val content = URL(url).readText()
-                    parseM3U(content, countryCode, forcedCategory)
+                    val parsed = parseM3U(content, countryCode, forcedCategory)
+
+                    // Logic: If content isn't a playlist but is a direct stream link (m3u8)
+                    if (parsed.isEmpty() && (url.contains(".m3u8", ignoreCase = true) || content.contains("#EXT-X-TARGETDURATION"))) {
+                        val fileName = url.substringAfterLast("/").substringBefore("?").removeSuffix(".m3u8")
+                        listOf(Channel(
+                            id = url.hashCode().toString(),
+                            name = if (fileName.isNotBlank()) fileName.replace("_", " ").uppercase() else "Custom Stream",
+                            logoUrl = null,
+                            streamUrl = url,
+                            category = forcedCategory ?: "Custom",
+                            country = countryCode.uppercase()
+                        ))
+                    } else {
+                        parsed
+                    }
                 } catch (e: Exception) {
-                    emptyList<Channel>()
+                    // Fallback for direct links that fail readText (some stream servers)
+                    if (url.contains(".m3u8", ignoreCase = true) || url.contains("://")) {
+                        val fileName = url.substringAfterLast("/").substringBefore("?").removeSuffix(".m3u8")
+                        listOf(Channel(
+                            id = url.hashCode().toString(),
+                            name = if (fileName.isNotBlank()) fileName.replace("_", " ").uppercase() else "Direct Stream",
+                            logoUrl = null,
+                            streamUrl = url,
+                            category = forcedCategory ?: "Custom",
+                            country = countryCode.uppercase()
+                        ))
+                    } else {
+                        emptyList<Channel>()
+                    }
                 }
             }
         }.awaitAll().flatten().distinctBy { it.streamUrl }
@@ -67,19 +95,22 @@ class IptvRepository(private val context: Context, private val channelDao: Chann
         var currentInfo: String? = null
 
         for (line in lines) {
-            if (line.startsWith("#EXTINF:")) {
-                currentInfo = line
-            } else if (line.startsWith("http") && currentInfo != null) {
+            val trimmedLine = line.trim()
+            if (trimmedLine.startsWith("#EXTINF:")) {
+                currentInfo = trimmedLine
+            } else if ((trimmedLine.startsWith("http") || trimmedLine.contains("://")) && currentInfo != null) {
                 val name = currentInfo.substringAfterLast(",").trim()
                 val logo = Regex("""tvg-logo="([^"]*)"""").find(currentInfo)?.groupValues?.get(1)
                 val group = forcedCategory ?: Regex("""group-title="([^"]*)"""").find(currentInfo)?.groupValues?.get(1) ?: "General"
-                
+
+                val uniqueId = (name + trimmedLine).hashCode().toString()
+
                 channels.add(
                     Channel(
-                        id = line.trim().hashCode().toString(),
+                        id = uniqueId,
                         name = name,
                         logoUrl = logo,
-                        streamUrl = line.trim(),
+                        streamUrl = trimmedLine,
                         category = group,
                         country = countryCode.uppercase()
                     )

@@ -2,6 +2,7 @@ package com.dragobb.iptv
 
 import android.app.Application
 import android.content.res.Configuration
+import android.app.PictureInPictureParams
 import android.os.Build
 import android.os.Bundle
 import android.util.Rational
@@ -11,6 +12,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.*
@@ -26,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -58,7 +61,7 @@ import com.dragobb.iptv.ui.viewmodels.IptvViewModelFactory
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
-import android.app.PictureInPictureParams
+
 class MainActivity : ComponentActivity() {
     private var isCurrentlyPlaying by mutableStateOf(false)
     private var isSystemPiP by mutableStateOf(false)
@@ -153,8 +156,27 @@ fun IPTVApp(
     var offsetY by remember { mutableFloatStateOf(0f) }
 
     BackHandler(enabled = selectedChannel != null) {
-        if (isPlayerMinimized) viewModel.selectChannel(null)
-        else viewModel.setPlayerMinimized(true)
+        viewModel.selectChannel(null)
+    }
+
+    // Unified Global Error Dialog
+    if (errorMessage != null) {
+        AlertDialog(
+            onDismissRequest = { viewModel.clearError() },
+            title = { Text("System Alert", fontWeight = FontWeight.Bold) },
+            text = { Text(errorMessage!!) },
+            confirmButton = {
+                Button(
+                    onClick = { 
+                        viewModel.clearError()
+                        if (selectedChannel != null) viewModel.selectChannel(null)
+                    },
+                    shape = RoundedCornerShape(12.dp)
+                ) { Text("OK") }
+            },
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(24.dp)
+        )
     }
 
     if (isInSystemPiP && selectedChannel != null) {
@@ -162,9 +184,7 @@ fun IPTVApp(
             exoPlayer = viewModel.exoPlayer,
             channelName = selectedChannel?.name ?: "Unknown Channel",
             isBuffering = isBuffering,
-            errorMessage = errorMessage,
             onBack = { viewModel.selectChannel(null) },
-            onClearError = { viewModel.clearError() },
             modifier = Modifier.fillMaxSize()
         )
     } else {
@@ -172,43 +192,95 @@ fun IPTVApp(
             drawerState = drawerState,
             gesturesEnabled = selectedChannel == null || isPlayerMinimized,
             drawerContent = {
-                Box(modifier = Modifier.fillMaxHeight().width(300.dp).background(Color.Black.copy(alpha = 0.96f)).border(1.dp, Color.White.copy(0.05f))) {
-                    Column(modifier = Modifier.fillMaxSize().padding(24.dp).verticalScroll(rememberScrollState())) {
-                        Spacer(Modifier.height(48.dp))
-                        Text("STAIRPLAY TV", style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Black, letterSpacing = 2.sp), color = MaterialTheme.colorScheme.primary)
+                ModalDrawerSheet(
+                    drawerContainerColor = Color(0xFF0F0F0F), // Netflix-style deep black
+                    drawerShape = RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp),
+                    modifier = Modifier.width(300.dp)
+                ) {
+                    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
+                        Spacer(Modifier.height(56.dp))
+                        
+                        // Premium Header Branding
+                        Text(
+                            "STAIRPLAY",
+                            style = MaterialTheme.typography.headlineSmall.copy(
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 3.sp
+                            ),
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 12.dp)
+                        )
+                        Text(
+                            "PREMIUM TV",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp
+                            ),
+                            color = Color.White.copy(alpha = 0.4f),
+                            modifier = Modifier.padding(horizontal = 12.dp)
+                        )
+                        
                         Spacer(Modifier.height(40.dp))
 
-                        AppDestinations.entries.forEach { destination ->
-                            NavigationItem(destination.label, destination.icon, currentDestination == destination) {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                currentDestination = destination
-                                scope.launch { drawerState.close() }
+                        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                            AppDestinations.entries.forEach { destination ->
+                                NavigationItem(destination.label, destination.icon, currentDestination == destination) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    currentDestination = destination
+                                    scope.launch { drawerState.close() }
+                                }
+                                Spacer(Modifier.height(4.dp))
                             }
-                        }
 
-                        Spacer(Modifier.height(16.dp))
-                        HorizontalDivider(color = Color.White.copy(0.05f))
-                        Spacer(Modifier.height(16.dp))
+                            Spacer(Modifier.height(24.dp))
+                            HorizontalDivider(color = Color.White.copy(0.05f), thickness = 0.5.dp)
+                            Spacer(Modifier.height(24.dp))
 
-                        Row(modifier = Modifier.fillMaxWidth().clickable {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            isCategoriesExpanded = !isCategoriesExpanded
-                        }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Category, null, tint = Color.Gray)
-                            Spacer(Modifier.width(12.dp))
-                            Text("Categories", modifier = Modifier.weight(1f), color = Color.White)
-                            Icon(if (isCategoriesExpanded) Icons.Default.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Color.Gray)
-                        }
+                            // Collapsible Categories Header
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        isCategoriesExpanded = !isCategoriesExpanded
+                                    }
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Category, null, tint = Color.White.copy(alpha = 0.6f))
+                                Spacer(Modifier.width(12.dp))
+                                Text(
+                                    "CATEGORIES",
+                                    style = MaterialTheme.typography.labelLarge.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 1.sp
+                                    ),
+                                    color = Color.White.copy(alpha = 0.8f),
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Icon(
+                                    if (isCategoriesExpanded) Icons.Default.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                    null,
+                                    tint = Color.White.copy(alpha = 0.4f),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
 
-                        AnimatedVisibility(visible = isCategoriesExpanded, enter = expandVertically(), exit = shrinkVertically()) {
-                            Column(modifier = Modifier.padding(start = 12.dp, top = 8.dp)) {
-                                if (uiState is IptvUiState.Success) {
-                                    (uiState as IptvUiState.Success).categories.forEach { category ->
-                                        CategoryItem(category, selectedCategory == category) {
-                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            viewModel.setCategory(category)
-                                            currentDestination = AppDestinations.HOME
-                                            scope.launch { drawerState.close() }
+                            AnimatedVisibility(
+                                visible = isCategoriesExpanded,
+                                enter = expandVertically(),
+                                exit = shrinkVertically()
+                            ) {
+                                Column(modifier = Modifier.padding(top = 8.dp)) {
+                                    if (uiState is IptvUiState.Success) {
+                                        (uiState as IptvUiState.Success).categories.forEach { category ->
+                                            CategoryItem(category, selectedCategory == category) {
+                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                viewModel.setCategory(category)
+                                                currentDestination = AppDestinations.HOME
+                                                scope.launch { drawerState.close() }
+                                            }
                                         }
                                     }
                                 }
@@ -255,9 +327,6 @@ fun IPTVApp(
                                 AppDestinations.SETTINGS -> SettingsScreen(viewModel, {scope.launch { drawerState.open() }})
                             }
                         }
-                        is IptvUiState.Error -> Box(Modifier.fillMaxSize(), Alignment.Center) {
-                            Text("Error: ${state.message}", color = MaterialTheme.colorScheme.error)
-                        }
                     }
                 }
 
@@ -267,9 +336,7 @@ fun IPTVApp(
                             exoPlayer = viewModel.exoPlayer,
                             channelName = selectedChannel?.name ?: "Unknown Channel",
                             isBuffering = isBuffering,
-                            errorMessage = errorMessage,
-                            onBack = { viewModel.setPlayerMinimized(true) },
-                            onClearError = { viewModel.clearError() },
+                            onBack = { viewModel.selectChannel(null) },
                             onMiniPlayer = onEnterPiP,
                             modifier = Modifier.fillMaxSize()
                         )
@@ -303,9 +370,8 @@ fun IPTVApp(
                                 exoPlayer = viewModel.exoPlayer,
                                 channelName = selectedChannel?.name ?: "Unknown Channel",
                                 isBuffering = isBuffering,
-                                errorMessage = errorMessage,
                                 isMinimized = true,
-                                onBack = { viewModel.setPlayerMinimized(false) },
+                                onBack = { viewModel.selectChannel(null) },
                                 onClose = { viewModel.selectChannel(null) },
                                 onExpand = { viewModel.setPlayerMinimized(false) },
                                 modifier = Modifier.fillMaxSize()
@@ -320,6 +386,7 @@ fun IPTVApp(
 
 @Composable
 fun CategoryItem(category: String, isSelected: Boolean, onClick: () -> Unit) {
+    val scale by animateFloatAsState(targetValue = if (isSelected) 1.05f else 1f, label = "catScale")
     val icon = remember(category) {
         when {
             category.contains("Movie", true) -> Icons.Default.Movie
@@ -329,20 +396,89 @@ fun CategoryItem(category: String, isSelected: Boolean, onClick: () -> Unit) {
             else -> Icons.Default.Tv
         }
     }
-    Row(modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, null, tint = if (isSelected) MaterialTheme.colorScheme.primary else Color.Gray, modifier = Modifier.size(20.dp))
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .clickable { onClick() }
+            .padding(vertical = 8.dp, horizontal = 12.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            },
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            icon,
+            null,
+            tint = if (isSelected) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.5f),
+            modifier = Modifier.size(18.dp)
+        )
         Spacer(Modifier.width(12.dp))
-        Text(category, color = if (isSelected) MaterialTheme.colorScheme.primary else Color.LightGray, fontSize = 14.sp)
+        Text(
+            category,
+            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.5f),
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                fontSize = 14.sp
+            )
+        )
     }
 }
 
 @Composable
 fun NavigationItem(label: String, icon: ImageVector, isSelected: Boolean, onClick: () -> Unit) {
-    Surface(onClick = onClick, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), color = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else Color.Transparent, shape = RoundedCornerShape(12.dp)) {
-        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = if (isSelected) MaterialTheme.colorScheme.primary else Color.Gray)
-            Spacer(Modifier.width(12.dp))
-            Text(label, color = if (isSelected) MaterialTheme.colorScheme.primary else Color.White, fontWeight = FontWeight.SemiBold)
+    val scale by animateFloatAsState(targetValue = if (isSelected) 1.05f else 1f, label = "scale")
+    val alpha by animateFloatAsState(targetValue = if (isSelected) 1f else 0.7f, label = "alpha")
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(52.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onClick() }
+            .background(
+                if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                else Color.Transparent
+            ),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        // Vertical indicator strip
+        if (isSelected) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight(0.5f)
+                    .width(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(MaterialTheme.colorScheme.primary)
+            )
+        }
+
+        Row(
+            modifier = Modifier
+                .padding(start = 16.dp)
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                icon,
+                null,
+                tint = if (isSelected) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.7f),
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(Modifier.width(16.dp))
+            Text(
+                label,
+                color = if (isSelected) Color.White else Color.White.copy(alpha = 0.7f),
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                    letterSpacing = 0.2.sp
+                ),
+                modifier = Modifier.graphicsLayer { this.alpha = alpha }
+            )
         }
     }
 }

@@ -1,8 +1,10 @@
 package com.dragobb.iptv.ui.screens
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -20,14 +22,18 @@ import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.request.CachePolicy
+import coil.request.ImageRequest
 import com.airbnb.lottie.compose.*
 import com.dragobb.iptv.ui.components.ChannelCard
 import com.dragobb.iptv.ui.components.ChannelListItem
@@ -52,16 +58,16 @@ fun HomeScreen(
     onRefresh: () -> Unit,
     onMenuClick: () -> Unit
 ) {
-    val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
     val pullToRefreshState = rememberPullToRefreshState()
     val listState = rememberLazyListState()
 
+    // Optimization: Pre-calculate colors using graphicsLayer alpha for smoother transitions
     val bgColor by animateColorAsState(
         targetValue = when {
             selectedCategory.contains("Movie", true) -> Color(0xFF1A0B0B)
             selectedCategory.contains("Sport", true) -> Color(0xFF0B1A0B)
             selectedCategory.contains("Philippines", true) -> Color(0xFF0B0B1A)
-            else -> MaterialTheme.colorScheme.background
+            else -> Color(0xFF0F0F0F)
         },
         animationSpec = tween(1000),
         label = "bgColor"
@@ -90,20 +96,37 @@ fun HomeScreen(
     }
 
     Scaffold(
-        modifier = Modifier.fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection),
+        modifier = Modifier.fillMaxSize(),
         containerColor = bgColor,
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("StairPlay TV", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleLarge)
-                        Text(text = "📍 $country", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                        Text(
+                            "STAIRPLAY TV", 
+                            fontWeight = FontWeight.Black, 
+                            style = MaterialTheme.typography.titleMedium,
+                            letterSpacing = 2.sp
+                        )
+                        Surface(
+                            color = MaterialTheme.colorScheme.primary.copy(0.1f),
+                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier.padding(top = 2.dp)
+                        ) {
+                            Text(
+                                text = " 📍 $country ", 
+                                style = MaterialTheme.typography.labelSmall, 
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onMenuClick) { Icon(Icons.Default.Menu, "Menu") }
+                    IconButton(onClick = onMenuClick) { 
+                        Icon(Icons.Default.Menu, "Menu", tint = Color.White) 
+                    }
                 },
-                scrollBehavior = scrollBehavior,
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = Color.Transparent,
                     scrolledContainerColor = bgColor.copy(alpha = 0.9f)
@@ -120,62 +143,71 @@ fun HomeScreen(
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 100.dp)
+                contentPadding = PaddingValues(bottom = 120.dp)
             ) {
-                // Spotlight only on Grid/Rows Home
                 if (viewMode == ViewMode.GRID && featuredChannels.isNotEmpty() && selectedCategory == "All" && searchQuery.isEmpty()) {
-                    item { SpotlightBanner(featuredChannels, onChannelClick) }
+                    item(contentType = "Spotlight") { SpotlightBanner(featuredChannels, onChannelClick) }
                 }
 
-                item {
-                    TextField(
-                        value = searchQuery,
-                        onValueChange = onSearchQueryChange,
-                        modifier = Modifier.fillMaxWidth().padding(16.dp).height(54.dp),
-                        placeholder = { Text("Search TV channels...") },
-                        leadingIcon = { Icon(Icons.Default.Search, null) },
-                        shape = RoundedCornerShape(16.dp),
-                        colors = TextFieldDefaults.colors(
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent,
-                            focusedContainerColor = Color.White.copy(alpha = 0.05f),
-                            unfocusedContainerColor = Color.White.copy(alpha = 0.05f)
-                        ),
-                        singleLine = true
-                    )
+                item(contentType = "SearchField") {
+                    Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                        TextField(
+                            value = searchQuery,
+                            onValueChange = onSearchQueryChange,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(56.dp)
+                                .border(0.5.dp, Color.White.copy(0.1f), RoundedCornerShape(16.dp)),
+                            placeholder = { Text("Search TV channels...", fontSize = 14.sp, color = Color.Gray) },
+                            leadingIcon = { Icon(Icons.Default.Search, null, tint = Color.Gray) },
+                            shape = RoundedCornerShape(16.dp),
+                            colors = TextFieldDefaults.colors(
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent,
+                                focusedContainerColor = Color.White.copy(alpha = 0.05f),
+                                unfocusedContainerColor = Color.White.copy(alpha = 0.05f),
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White
+                            ),
+                            singleLine = true
+                        )
+                    }
                 }
 
                 if (isLoading && channels.isEmpty()) {
-                    item { Box(modifier = Modifier.fillMaxWidth().height(250.dp), contentAlignment = Alignment.Center) { LottieLoadingView() } }
-                    items(3) { CategoryRowShimmer() }
+                    item(contentType = "Loading") { 
+                        Box(modifier = Modifier.fillMaxWidth().height(300.dp), contentAlignment = Alignment.Center) { 
+                            LottieLoadingView() 
+                        } 
+                    }
+                    items(3, contentType = { "Shimmer" }) { CategoryRowShimmer() }
                 } else {
                     if (viewMode == ViewMode.GRID) {
-                        // --- ROW VIEW (Netflix Style) ---
                         if (recentChannels.isNotEmpty() && selectedCategory == "All" && searchQuery.isEmpty()) {
-                            item(key = "recently_watched") {
+                            item(key = "recently_watched", contentType = "ChannelRow") {
                                 ChannelRow("Recently Watched", recentChannels, onChannelClick, onToggleFavorite)
                             }
                         }
 
                         groupedChannels.forEach { (category, categoryChannels) ->
                             if (categoryChannels.isNotEmpty()) {
-                                item(key = category) {
+                                item(key = category, contentType = "ChannelRow") {
                                     ChannelRow(category, categoryChannels, onChannelClick, onToggleFavorite)
                                 }
                             }
                         }
                     } else {
-                        // --- LIST VIEW (Vertical Style) ---
-                        items(filteredChannels, key = { it.id }) { channel ->
-                            PaddingValues(horizontal = 16.dp, vertical = 4.dp).let {
-                                Box(modifier = Modifier.padding(it)) {
-                                    ChannelListItem(
-                                        channel = channel,
-                                        onChannelClick = onChannelClick,
-                                        onToggleFavorite = onToggleFavorite
-                                    )
-                                }
-                            }
+                        items(
+                            items = filteredChannels,
+                            key = { it.id },
+                            contentType = { "ListItem" }
+                        ) { channel ->
+                            ChannelListItem(
+                                channel = channel,
+                                onChannelClick = onChannelClick,
+                                onToggleFavorite = onToggleFavorite,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                            )
                         }
                     }
                 }
@@ -186,10 +218,12 @@ fun HomeScreen(
 
 @Composable
 fun SpotlightBanner(channels: List<Channel>, onChannelClick: (Channel) -> Unit) {
+    val context = LocalContext.current
     val pagerState = rememberPagerState(pageCount = { channels.size })
+    
     LaunchedEffect(Unit) {
         while (true) {
-            delay(5000)
+            delay(6000)
             val nextPage = (pagerState.currentPage + 1) % channels.size
             pagerState.animateScrollToPage(nextPage)
         }
@@ -197,25 +231,42 @@ fun SpotlightBanner(channels: List<Channel>, onChannelClick: (Channel) -> Unit) 
 
     HorizontalPager(
         state = pagerState,
-        modifier = Modifier.fillMaxWidth().height(220.dp).padding(16.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(240.dp)
+            .padding(vertical = 16.dp)
     ) { page ->
         val channel = channels[page]
+        val pageOffset = (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
+        
         Card(
             onClick = { onChannelClick(channel) },
-            modifier = Modifier.fillMaxSize(),
-            shape = RoundedCornerShape(24.dp)
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp)
+                .graphicsLayer {
+                    // Subtle parallax effect
+                    alpha = 1f - (kotlin.math.abs(pageOffset) * 0.3f)
+                    scaleX = 1f - (kotlin.math.abs(pageOffset) * 0.1f)
+                    scaleY = 1f - (kotlin.math.abs(pageOffset) * 0.1f)
+                },
+            shape = RoundedCornerShape(20.dp)
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
                 AsyncImage(
-                    model = channel.logoUrl,
+                    model = ImageRequest.Builder(context)
+                        .data(channel.logoUrl)
+                        .crossfade(true)
+                        .diskCachePolicy(CachePolicy.ENABLED)
+                        .build(),
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
-                Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(0.8f)))))
+                Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(0.9f)))))
                 Column(modifier = Modifier.align(Alignment.BottomStart).padding(20.dp)) {
                     Surface(color = MaterialTheme.colorScheme.primary, shape = RoundedCornerShape(4.dp)) {
-                        Text("FEATURED", modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall, color = Color.Black, fontWeight = FontWeight.Bold)
+                        Text("FEATURED", modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall, color = Color.Black, fontWeight = FontWeight.Black)
                     }
                     Text(channel.name, style = MaterialTheme.typography.headlineSmall, color = Color.White, fontWeight = FontWeight.Black)
                 }
@@ -231,20 +282,31 @@ fun ChannelRow(
     onChannelClick: (Channel) -> Unit,
     onToggleFavorite: (Channel) -> Unit
 ) {
-    Column(modifier = Modifier.padding(vertical = 12.dp)) {
+    Column(modifier = Modifier.padding(vertical = 14.dp)) {
         Text(
             text = title.uppercase(),
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Black, letterSpacing = 1.sp),
-            color = MaterialTheme.colorScheme.primary
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
+            style = MaterialTheme.typography.labelLarge.copy(
+                fontWeight = FontWeight.Black, 
+                letterSpacing = 2.sp,
+                fontSize = 12.sp
+            ),
+            color = Color.White.copy(alpha = 0.9f)
         )
-        LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(channels, key = { it.id }) { channel ->
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            items(
+                items = channels,
+                key = { it.id },
+                contentType = { "ChannelCard" }
+            ) { channel ->
                 ChannelCard(
                     channel = channel,
                     onChannelClick = onChannelClick,
                     onToggleFavorite = onToggleFavorite,
-                    modifier = Modifier.width(220.dp)
+                    modifier = Modifier.width(180.dp)
                 )
             }
         }
@@ -255,15 +317,15 @@ fun ChannelRow(
 fun LottieLoadingView() {
     val composition by rememberLottieComposition(LottieCompositionSpec.Url("https://lottie.host/8e2f8d22-2615-46c0-b5d1-d97157d19e9f/8Y1P9I2fK9.json"))
     val progress by animateLottieCompositionAsState(composition, iterations = LottieConstants.IterateForever)
-    LottieAnimation(composition = composition, progress = { progress }, modifier = Modifier.size(180.dp))
+    LottieAnimation(composition = composition, progress = { progress }, modifier = Modifier.size(150.dp))
 }
 
 @Composable
 fun CategoryRowShimmer() {
-    Column(modifier = Modifier.padding(vertical = 8.dp)) {
-        Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).width(120.dp).height(16.dp).background(Color.Gray.copy(0.2f), RoundedCornerShape(4.dp)))
+    Column(modifier = Modifier.padding(vertical = 12.dp)) {
+        Box(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp).width(100.dp).height(14.dp).background(Color.White.copy(0.05f), RoundedCornerShape(4.dp)))
         LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(3) { ShimmerItem(modifier = Modifier.width(200.dp).aspectRatio(16f/9f)) }
+            items(3) { ShimmerItem(modifier = Modifier.width(180.dp).aspectRatio(16f/9f)) }
         }
     }
 }

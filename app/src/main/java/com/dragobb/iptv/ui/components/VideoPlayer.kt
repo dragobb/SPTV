@@ -41,13 +41,11 @@ fun VideoPlayer(
     exoPlayer: ExoPlayer,
     channelName: String,
     isBuffering: Boolean,
-    errorMessage: String?,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     isMinimized: Boolean = false,
     onClose: (() -> Unit)? = null,
     onExpand: (() -> Unit)? = null,
-    onClearError: () -> Unit = {},
     onMiniPlayer: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
@@ -58,12 +56,11 @@ fun VideoPlayer(
     // Auto-hide controls logic
     LaunchedEffect(showControls, isBuffering) {
         if (showControls && !isBuffering && !isMinimized) {
-            delay(3500) // Hide after 3.5 seconds
+            delay(3500)
             showControls = false
         }
     }
 
-    // Immersive Mode Handler
     val activity = context.findActivity()
     val window = activity?.window
     if (window != null && !isMinimized) {
@@ -108,7 +105,7 @@ fun VideoPlayer(
             modifier = Modifier.fillMaxSize()
         )
 
-        if (isBuffering && errorMessage == null) {
+        if (isBuffering) {
             CircularProgressIndicator(
                 modifier = Modifier.align(Alignment.Center),
                 color = MaterialTheme.colorScheme.primary,
@@ -129,7 +126,6 @@ fun VideoPlayer(
                 .safeDrawingPadding()
                 .padding(16.dp)
             ) {
-                // Top controls (Back + Name)
                 Row(
                     modifier = Modifier.fillMaxWidth().align(Alignment.TopStart),
                     verticalAlignment = Alignment.CenterVertically
@@ -156,12 +152,10 @@ fun VideoPlayer(
                     )
                 }
 
-                // Bottom Right controls
                 Row(
                     modifier = Modifier.align(Alignment.BottomEnd),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Scale Button
                     IconButton(
                         onClick = {
                             resizeMode = when (resizeMode) {
@@ -177,7 +171,6 @@ fun VideoPlayer(
                         Icon(Icons.Default.AspectRatio, "Scale", tint = Color.White)
                     }
 
-                    // MiniPlayer Button
                     if (onMiniPlayer != null) {
                         IconButton(
                             onClick = onMiniPlayer,
@@ -189,7 +182,6 @@ fun VideoPlayer(
                         }
                     }
 
-                    // Fullscreen Button
                     IconButton(
                         onClick = {
                             isFullscreen = !isFullscreen
@@ -213,7 +205,6 @@ fun VideoPlayer(
             }
         }
 
-        // Minimized Mode Controls
         if (isMinimized) {
             Box(modifier = Modifier.fillMaxSize().padding(4.dp)) {
                 if (onClose != null) {
@@ -240,23 +231,6 @@ fun VideoPlayer(
                     }
                 }
             }
-        }
-
-        // Error Dialog
-        if (errorMessage != null && !isMinimized) {
-            AlertDialog(
-                onDismissRequest = { onClearError() },
-                title = { Text("Playback Error") },
-                text = { Text(errorMessage) },
-                confirmButton = {
-                    Button(onClick = { 
-                        onClearError()
-                        onBack() 
-                    }) { Text("OK") }
-                },
-                containerColor = MaterialTheme.colorScheme.surface,
-                shape = RoundedCornerShape(24.dp)
-            )
         }
     }
 }

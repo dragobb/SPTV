@@ -9,6 +9,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -28,6 +29,10 @@ fun FavoritesScreen(
     onMenuClick: () -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
+
+    // Performance Optimization: Memoize lambdas to prevent child recomposition
+    val memoizedOnChannelClick = remember(onChannelClick) { { channel: Channel -> onChannelClick(channel) } }
+    val memoizedOnToggleFavorite = remember(onToggleFavorite) { { channel: Channel -> onToggleFavorite(channel) } }
 
     Scaffold(
         topBar = {
@@ -63,11 +68,15 @@ fun FavoritesScreen(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.padding(innerPadding).fillMaxSize()
             ) {
-                items(favoriteChannels, key = { it.id }) { channel ->
+                items(
+                    items = favoriteChannels,
+                    key = { it.id },
+                    contentType = { "FavoriteCard" }
+                ) { channel ->
                     ChannelCard(
                         channel = channel,
-                        onChannelClick = onChannelClick,
-                        onToggleFavorite = onToggleFavorite
+                        onChannelClick = memoizedOnChannelClick,
+                        onToggleFavorite = memoizedOnToggleFavorite
                     )
                 }
             }

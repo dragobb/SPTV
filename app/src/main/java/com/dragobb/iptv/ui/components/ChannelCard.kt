@@ -1,16 +1,15 @@
 package com.dragobb.iptv.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -23,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -30,6 +30,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.request.CachePolicy
+import coil.request.ImageRequest
+import com.airbnb.lottie.compose.*
 import com.dragobb.iptv.R
 import com.dragobb.iptv.ui.models.Channel
 
@@ -41,11 +44,26 @@ fun ChannelCard(
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
+    val context = LocalContext.current
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (isPressed) 0.96f else 1f, label = "scale")
+    
+    // Premium Netflix-style scaling
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.94f else 1f,
+        animationSpec = tween(durationMillis = 100),
+        label = "scale"
+    )
 
-    Card(
+    // Lottie Favorite Animation
+    val composition by rememberLottieComposition(LottieCompositionSpec.Url("https://lottie.host/8597036d-55d8-4f80-8703-999330a11681/AOKu6O9W8m.json"))
+    val progress by animateLottieCompositionAsState(
+        composition = composition,
+        isPlaying = channel.isFavorite,
+        iterations = 1
+    )
+
+    Box(
         modifier = modifier
             .fillMaxWidth()
             .aspectRatio(16f / 9f)
@@ -53,70 +71,79 @@ fun ChannelCard(
                 scaleX = scale
                 scaleY = scale
             }
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color(0xFF1A1A1A))
+            .border(0.5.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(14.dp)) // Glass border
             .clickable(
                 interactionSource = interactionSource,
-                indication = LocalIndication.current
+                indication = null // Clean Netflix look, no ripple
             ) {
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 onChannelClick(channel)
-            },
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.1f))
+            }
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            AsyncImage(
-                model = channel.logoUrl,
-                contentDescription = channel.name,
-                placeholder = painterResource(R.drawable.monitor),
-                error = painterResource(R.drawable.monitor),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.2f)),
-                contentScale = ContentScale.Fit
-            )
+        AsyncImage(
+            model = ImageRequest.Builder(context)
+                .data(channel.logoUrl)
+                .crossfade(true)
+                .diskCachePolicy(CachePolicy.ENABLED)
+                .memoryCachePolicy(CachePolicy.ENABLED)
+                .build(),
+            contentDescription = channel.name,
+            placeholder = painterResource(R.drawable.monitor),
+            error = painterResource(R.drawable.monitor),
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { alpha = 0.85f },
+            contentScale = ContentScale.Fit
+        )
 
-            // Dynamic Gradient Overlay
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.9f)),
-                            startY = 100f
-                        )
+        // Gradient overlay for text readability
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f)),
+                        startY = 150f
                     )
-            )
+                )
+        )
 
-            // Favorite Button
-            IconButton(
-                onClick = {
+        // Floating Favorite Tag
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(8.dp)
+                .size(32.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color.Black.copy(alpha = 0.6f))
+                .clickable {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     onToggleFavorite(channel)
                 },
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(8.dp)
-                    .size(32.dp)
-                    .background(color = Color.Black.copy(alpha = 0.4f), shape = RoundedCornerShape(8.dp))
-            ) {
-                Icon(
-                    imageVector = if (channel.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                    contentDescription = "Favorite",
-                    tint = if (channel.isFavorite) MaterialTheme.colorScheme.tertiary else Color.White,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-
-            Text(
-                text = channel.name,
-                color = Color.White,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.align(Alignment.BottomStart).padding(12.dp)
+            contentAlignment = Alignment.Center
+        ) {
+            LottieAnimation(
+                composition = composition,
+                progress = { if (channel.isFavorite) progress else 0f },
+                modifier = Modifier.size(22.dp)
             )
         }
+
+        Text(
+            text = channel.name,
+            color = Color.White,
+            style = MaterialTheme.typography.labelLarge.copy(
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp,
+                letterSpacing = 0.5.sp
+            ),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(12.dp)
+        )
     }
 }
