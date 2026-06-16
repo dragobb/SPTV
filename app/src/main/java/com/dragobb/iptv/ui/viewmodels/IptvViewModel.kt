@@ -4,6 +4,8 @@ import android.app.Application
 import android.content.Context
 import android.net.Uri
 import androidx.annotation.OptIn
+import androidx.core.content.edit
+import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -20,7 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlin.time.Duration.Companion.milliseconds
 
 sealed class IptvUiState {
     object Loading : IptvUiState()
@@ -30,18 +32,18 @@ sealed class IptvUiState {
 enum class ViewMode { GRID, LIST }
 
 @OptIn(UnstableApi::class)
-@FlowPreview
 class IptvViewModel(
     application: Application,
     private val repository: IptvRepository,
     private val favoritesDao: FavoritesDao,
     private val recentChannelDao: RecentChannelDao,
-    private val playlistDao: PlaylistDao
+    private val playlistDao: PlaylistDao,
+    private val searchHistoryDao: SearchHistoryDao,
 ) : AndroidViewModel(application) {
 
     private val prefs = application.getSharedPreferences("iptv_settings", Context.MODE_PRIVATE)
 
-    private val _isLoading = MutableStateFlow(true)
+    private val _isLoading = MutableStateFlow(value = true)
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage = _errorMessage.asStateFlow()
 
@@ -62,11 +64,22 @@ class IptvViewModel(
 
     // Persistent Settings
     val isSafeMode = MutableStateFlow(prefs.getBoolean("is_safe_mode", true))
-    val manualCountryOverride = MutableStateFlow<String?>(prefs.getString("manual_country", null))
+    val manualCountryOverride = MutableStateFlow(prefs.getString("manual_country", null))
     val isHardwareAcceleration = MutableStateFlow(prefs.getBoolean("is_hardware_accel", true))
     val isBackgroundPlay = MutableStateFlow(prefs.getBoolean("is_bg_play", false))
-    val viewMode = MutableStateFlow(ViewMode.valueOf(prefs.getString("view_mode", ViewMode.GRID.name) ?: ViewMode.GRID.name))
+    val viewMode = MutableStateFlow(
+        try {
+            ViewMode.valueOf(prefs.getString("view_mode", ViewMode.GRID.name) ?: ViewMode.GRID.name)
+        } catch (e: Exception) {
+            ViewMode.GRID
+        }
+    )
     val savedPin = MutableStateFlow(prefs.getString("saved_pin", "1234") ?: "1234")
+
+    // Search History Flow
+    val searchHistory: StateFlow<List<String>> = searchHistoryDao.getRecentSearches()
+        .map { searches -> searches.map { it.query } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Database-backed Playlists
     val customPlaylists: StateFlow<List<String>> = playlistDao.getAllPlaylists()
@@ -115,7 +128,7 @@ class IptvViewModel(
         manualCountryOverride,
         isSafeMode,
         _selectedCategory,
-        _searchQuery.debounce(300)
+        _searchQuery.debounce(300.milliseconds)
     ) { args ->
         val cachedChannels = args[0] as List<Channel>
         val favorites = args[1] as List<Channel>
@@ -128,45 +141,50 @@ class IptvViewModel(
         if (loading && cachedChannels.isEmpty()) {
             IptvUiState.Loading
         } else {
-            val favoriteIds = favorites.map { it.id }.toSet()
+            val favoriteIds = favorites.asSequence().map { it.id }.toSet()
+            val isAll = category == "All"
+            val isQueryEmpty = query.isEmpty()
+
+            // Optimized list filtering. Moved logic matching from HomeScreen directly here off main thread.
             val filtered = cachedChannels.filter { ch ->
                 val matchesSafe = !safeMode || (!ch.category.contains("XXX", true) && !ch.category.contains("Adult", true))
-                val matchesQuery = ch.name.contains(query, ignoreCase = true)
-                val matchesCategory = if (category == "All") true else ch.category == category
-                matchesSafe && matchesQuery && matchesCategory
+                if (!matchesSafe) return@filter false
+
+                val matchesCategory = isAll || ch.category.contains(category, ignoreCase = true)
+                if (!matchesCategory) return@filter false
+
+                val matchesQuery = isQueryEmpty || ch.name.contains(query, ignoreCase = true)
+                matchesQuery
             }.map { it.copy(isFavorite = favoriteIds.contains(it.id)) }
+
             val categoriesList = listOf("All") + cachedChannels.map { it.category }.distinct().sorted()
             IptvUiState.Success(filtered, override ?: "Detected", categoriesList)
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), IptvUiState.Loading)
+    }.flowOn(Dispatchers.Default) // Inilipat natin ang load ng filtering sa background thread
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), IptvUiState.Loading)
 
     init {
-        // Automatic refresh when settings change
-        viewModelScope.launch { 
-            combine(manualCountryOverride, customPlaylists) { _, _ -> refreshChannels() }.collect() 
+        viewModelScope.launch {
+            combine(manualCountryOverride, customPlaylists) { _, _ -> refreshChannels() }.collect()
         }
-        
-        viewModelScope.launch { isSafeMode.collect { prefs.edit().putBoolean("is_safe_mode", it).apply() } }
-        viewModelScope.launch { manualCountryOverride.collect { prefs.edit().putString("manual_country", it).apply() } }
-        viewModelScope.launch { isHardwareAcceleration.collect { prefs.edit().putBoolean("is_hardware_accel", it).apply() } }
-        viewModelScope.launch { isBackgroundPlay.collect { prefs.edit().putBoolean("is_bg_play", it).apply() } }
-        viewModelScope.launch { viewMode.collect { prefs.edit().putString("view_mode", it.name).apply() } }
-        viewModelScope.launch { savedPin.collect { prefs.edit().putString("saved_pin", it).apply() } }
+
+        viewModelScope.launch { isSafeMode.collect { v -> prefs.edit { putBoolean("is_safe_mode", v) } } }
+        viewModelScope.launch { manualCountryOverride.collect { v -> prefs.edit { putString("manual_country", v) } } }
+        viewModelScope.launch { isHardwareAcceleration.collect { v -> prefs.edit { putBoolean("is_hardware_accel", v) } } }
+        viewModelScope.launch { isBackgroundPlay.collect { v -> prefs.edit { putBoolean("is_bg_play", v) } } }
+        viewModelScope.launch { viewMode.collect { v -> prefs.edit { putString("view_mode", v.name) } } }
+        viewModelScope.launch { savedPin.collect { v -> prefs.edit { putString("saved_pin", v) } } }
     }
 
     fun clearError() { _errorMessage.value = null }
 
     fun addPlaylist(url: String) {
         if (url.isBlank()) return
-        viewModelScope.launch {
-            playlistDao.insertPlaylist(PlaylistEntity(url))
-        }
+        viewModelScope.launch { playlistDao.insertPlaylist(PlaylistEntity(url)) }
     }
 
     fun removePlaylist(url: String) {
-        viewModelScope.launch {
-            playlistDao.deletePlaylist(PlaylistEntity(url))
-        }
+        viewModelScope.launch { playlistDao.deletePlaylist(PlaylistEntity(url)) }
     }
 
     fun refreshChannels() {
@@ -174,10 +192,10 @@ class IptvViewModel(
             _isLoading.value = true
             try {
                 val code = when (manualCountryOverride.value) {
-                    "Philippines" -> "ph"; "USA" -> "us"; "UK" -> "gb"; "Japan" -> "jp"; "Germany" -> "de"; else -> null
+                    "Philippines" -> "ph"; "USA" -> "us"; "Japan" -> "jp"; "Germany" -> "de"; else -> null
                 }
                 repository.refreshChannels(code, customPlaylists.value)
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 _errorMessage.value = "Failed to update channel list."
             } finally {
                 _isLoading.value = false
@@ -195,7 +213,7 @@ class IptvViewModel(
             try {
                 val sanitizedUrl = channel.streamUrl.trim()
                 val mediaItem = MediaItem.Builder()
-                    .setUri(Uri.parse(sanitizedUrl))
+                    .setUri(sanitizedUrl.toUri())
                     .apply { if (sanitizedUrl.contains(".m3u8", true)) setMimeType(MimeTypes.APPLICATION_M3U8) }
                     .build()
                 exoPlayer.setMediaItem(mediaItem)
@@ -213,10 +231,25 @@ class IptvViewModel(
     }
 
     fun setCategory(category: String) { _selectedCategory.value = category }
-    fun setSearchQuery(query: String) { _searchQuery.value = query }
+    fun setSearchQuery(query: String) { 
+        _searchQuery.value = query 
+        if (query.length >= 3) {
+            viewModelScope.launch {
+                searchHistoryDao.insertSearch(SearchHistoryEntity(query.trim()))
+            }
+        }
+    }
+
+    fun clearSearchHistory() {
+        viewModelScope.launch { searchHistoryDao.clearAll() }
+    }
+
+    fun deleteSearchItem(query: String) {
+        viewModelScope.launch { searchHistoryDao.deleteSearch(SearchHistoryEntity(query)) }
+    }
     fun setPlayerMinimized(minimized: Boolean) { _isPlayerMinimized.value = minimized }
     override fun onCleared() { super.onCleared(); exoPlayer.release() }
-    
+
     fun toggleFavorite(channel: Channel) {
         viewModelScope.launch {
             val isFav = favoriteChannels.value.any { it.id == channel.id }
@@ -236,12 +269,13 @@ class IptvViewModelFactory(
     private val repository: IptvRepository,
     private val favoritesDao: FavoritesDao,
     private val recentChannelDao: RecentChannelDao,
-    private val playlistDao: PlaylistDao
+    private val playlistDao: PlaylistDao,
+    private val searchHistoryDao: SearchHistoryDao,
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(IptvViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return IptvViewModel(application, repository, favoritesDao, recentChannelDao, playlistDao) as T
+            return IptvViewModel(application, repository, favoritesDao, recentChannelDao, playlistDao, searchHistoryDao) as T
         }
         throw IllegalArgumentException("Unknown ViewModel")
     }

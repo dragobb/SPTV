@@ -1,13 +1,13 @@
 package com.dragobb.iptv.ui.components
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -46,11 +46,27 @@ fun ChannelListItem(
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     
-    // Netflix-style subtle shrink for lists
+    // Premium Electric Colors
+    val neonPurple = Color(0xFF8E5AFF)
+    val deepGray = Color(0xFF121212)
+
+    // Snappy scale animation
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.97f else 1f,
-        animationSpec = tween(100),
-        label = "listScale"
+        targetValue = if (isPressed) 0.96f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMedium),
+        label = "premiumScale"
+    )
+
+    // Pulse animation for the "Live" dot
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+    val dotAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.4f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(800, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "dotAlpha"
     )
 
     // Lottie Favorite Animation
@@ -64,13 +80,14 @@ fun ChannelListItem(
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .height(82.dp)
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .height(86.dp)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
             }
-            .clip(RoundedCornerShape(16.dp))
-            .border(0.5.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(24.dp))
+            .border(0.5.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(24.dp))
             .clickable(
                 interactionSource = interactionSource,
                 indication = null
@@ -78,21 +95,21 @@ fun ChannelListItem(
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 onChannelClick(channel)
             },
-        color = Color.White.copy(alpha = 0.04f),
-        shape = RoundedCornerShape(16.dp)
+        color = deepGray,
+        shape = RoundedCornerShape(24.dp)
     ) {
         Row(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().padding(end = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Channel Logo Container
+            // Channel Logo with specific background
             Box(
                 modifier = Modifier
                     .padding(8.dp)
-                    .fillMaxHeight()
-                    .aspectRatio(16f / 10f)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color.Black.copy(alpha = 0.3f))
+                    .size(70.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color.Black.copy(alpha = 0.4f)),
+                contentAlignment = Alignment.Center
             ) {
                 AsyncImage(
                     model = ImageRequest.Builder(context)
@@ -104,7 +121,7 @@ fun ChannelListItem(
                     contentDescription = channel.name,
                     placeholder = painterResource(R.drawable.monitor),
                     error = painterResource(R.drawable.monitor),
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.size(50.dp),
                     contentScale = ContentScale.Fit
                 )
             }
@@ -112,26 +129,41 @@ fun ChannelListItem(
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(horizontal = 12.dp),
+                    .padding(horizontal = 8.dp),
                 verticalArrangement = Arrangement.Center
             ) {
-                Text(
-                    text = channel.name,
-                    color = Color.White,
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp
-                    ),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(Modifier.height(2.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = channel.name,
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            letterSpacing = 0.3.sp
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    // Neon Pulse Dot for LIVE effect
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .graphicsLayer { alpha = dotAlpha }
+                            .clip(CircleShape)
+                            .background(neonPurple)
+                    )
+                }
+                
+                Spacer(Modifier.height(4.dp))
+                
                 Text(
                     text = channel.category.uppercase(),
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                    color = neonPurple.copy(alpha = 0.9f),
                     style = MaterialTheme.typography.labelSmall.copy(
-                        fontWeight = FontWeight.Black,
-                        letterSpacing = 0.5.sp
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 1.sp,
+                        fontSize = 10.sp
                     ),
                     maxLines = 1
                 )
@@ -143,14 +175,12 @@ fun ChannelListItem(
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     onToggleFavorite(channel)
                 },
-                modifier = Modifier
-                    .padding(end = 8.dp)
-                    .size(44.dp)
+                modifier = Modifier.size(44.dp)
             ) {
                 LottieAnimation(
                     composition = composition,
                     progress = { if (channel.isFavorite) progress else 0f },
-                    modifier = Modifier.size(26.dp)
+                    modifier = Modifier.size(24.dp)
                 )
             }
         }

@@ -17,9 +17,13 @@ import java.util.Locale
 class IptvRepository(private val context: Context, private val channelDao: ChannelDao) {
 
     fun getDetectedCountryCode(): String {
-        val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
-        val countryCode = tm.networkCountryIso.lowercase()
-        return if (countryCode.isNotBlank()) countryCode else Locale.getDefault().country.lowercase()
+        return try {
+            val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
+            val countryCode = tm?.networkCountryIso?.lowercase()
+            if (!countryCode.isNullOrBlank()) countryCode else Locale.getDefault().country.lowercase()
+        } catch (e: Exception) {
+            Locale.getDefault().country.lowercase()
+        }
     }
 
     fun getCachedChannels(): Flow<List<Channel>> {
@@ -32,12 +36,8 @@ class IptvRepository(private val context: Context, private val channelDao: Chann
         val countryCode = (overrideCountryCode ?: getDetectedCountryCode()).lowercase()
 
         val sources = mutableListOf<Pair<String, String?>>(
-            "https://iptv-org.github.io/iptv/countries/$countryCode.m3u" to null
+            "https://iptv-org.github.io/iptv/countries/$countryCode.m3u" to null,
         )
-
-        if (countryCode == "ph") {
-            sources.add("https://raw.githubusercontent.com/Harleythetech/IPHTV/refs/heads/main/ph.m3u" to "PHILIPPINES")
-        }
 
         // Add custom playlists
         customUrls.forEach { url ->
@@ -64,7 +64,7 @@ class IptvRepository(private val context: Context, private val channelDao: Chann
                     } else {
                         parsed
                     }
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     // Fallback for direct links that fail readText (some stream servers)
                     if (url.contains(".m3u8", ignoreCase = true) || url.contains("://")) {
                         val fileName = url.substringAfterLast("/").substringBefore("?").removeSuffix(".m3u8")
@@ -77,11 +77,14 @@ class IptvRepository(private val context: Context, private val channelDao: Chann
                             country = countryCode.uppercase()
                         ))
                     } else {
-                        emptyList<Channel>()
+                        emptyList()
                     }
                 }
             }
-        }.awaitAll().flatten().distinctBy { it.streamUrl }
+        }.awaitAll().asSequence().flatten()
+            .filter { !it.name.endsWith(".m3u", ignoreCase = true) && !it.name.endsWith(".m3u8", ignoreCase = true) }
+            .distinctBy { it.streamUrl }
+            .toList()
 
         if (remoteChannels.isNotEmpty()) {
             channelDao.clearAll()
@@ -98,7 +101,7 @@ class IptvRepository(private val context: Context, private val channelDao: Chann
             val trimmedLine = line.trim()
             if (trimmedLine.startsWith("#EXTINF:")) {
                 currentInfo = trimmedLine
-            } else if ((trimmedLine.startsWith("http") || trimmedLine.contains("://")) && currentInfo != null) {
+            } else if (((trimmedLine.startsWith("http") || trimmedLine.contains("://"))) && (currentInfo != null)) {
                 val name = currentInfo.substringAfterLast(",").trim()
                 val logo = Regex("""tvg-logo="([^"]*)"""").find(currentInfo)?.groupValues?.get(1)
                 val group = forcedCategory ?: Regex("""group-title="([^"]*)"""").find(currentInfo)?.groupValues?.get(1) ?: "General"

@@ -6,8 +6,8 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 
 @Database(
-    entities = [FavoriteChannel::class, RecentChannel::class, ChannelEntity::class, PlaylistEntity::class],
-    version = 5,
+    entities = [FavoriteChannel::class, RecentChannel::class, ChannelEntity::class, PlaylistEntity::class, SearchHistoryEntity::class],
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -15,6 +15,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun recentChannelDao(): RecentChannelDao
     abstract fun channelDao(): ChannelDao
     abstract fun playlistDao(): PlaylistDao
+    abstract fun searchHistoryDao(): SearchHistoryDao
 
     companion object {
         @Volatile

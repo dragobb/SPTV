@@ -1,14 +1,13 @@
 package com.dragobb.iptv.ui.components
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.LocalIndication
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -41,18 +40,34 @@ fun ChannelCard(
     channel: Channel,
     onChannelClick: (Channel) -> Unit,
     onToggleFavorite: (Channel) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val haptic = LocalHapticFeedback.current
     val context = LocalContext.current
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     
-    // Premium Netflix-style scaling
+    // Premium Electric Colors
+    val neonPurple = Color(0xFF8E5AFF)
+    val deepGray = Color(0xFF121212)
+
+    // Snappy scale animation
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.94f else 1f,
-        animationSpec = tween(durationMillis = 100),
-        label = "scale"
+        animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMedium),
+        label = "premiumCardScale"
+    )
+
+    // Pulse animation for the "Live" dot
+    val infiniteTransition = rememberInfiniteTransition(label = "pulseCard")
+    val dotAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.5f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "dotAlphaCard"
     )
 
     // Lottie Favorite Animation
@@ -66,22 +81,23 @@ fun ChannelCard(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .aspectRatio(16f / 9f)
+            .aspectRatio(2f / 3f) // Phase 2: Vertical Poster Style
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
             }
-            .clip(RoundedCornerShape(14.dp))
-            .background(Color(0xFF1A1A1A))
-            .border(0.5.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(14.dp)) // Glass border
+            .clip(RoundedCornerShape(24.dp))
+            .background(deepGray)
+            .border(0.5.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(24.dp))
             .clickable(
                 interactionSource = interactionSource,
-                indication = null // Clean Netflix look, no ripple
+                indication = null
             ) {
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 onChannelClick(channel)
             }
     ) {
+        // Channel Thumbnail / Logo
         AsyncImage(
             model = ImageRequest.Builder(context)
                 .data(channel.logoUrl)
@@ -94,30 +110,36 @@ fun ChannelCard(
             error = painterResource(R.drawable.monitor),
             modifier = Modifier
                 .fillMaxSize()
-                .graphicsLayer { alpha = 0.85f },
+                .padding(16.dp) // Adjusted padding for poster style
+                .graphicsLayer { alpha = 0.9f },
             contentScale = ContentScale.Fit
         )
 
-        // Gradient overlay for text readability
+        // Cinematic Gradient Overlay
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f)),
-                        startY = 150f
+                        colors = listOf(
+                            Color.Transparent,
+                            Color.Black.copy(alpha = 0.2f),
+                            Color.Black.copy(alpha = 0.95f)
+                        ),
+                        startY = 100f
                     )
                 )
         )
 
-        // Floating Favorite Tag
+        // Floating Favorite Button (Apple TV Style)
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(8.dp)
-                .size(32.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(Color.Black.copy(alpha = 0.6f))
+                .padding(12.dp)
+                .size(36.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(neonPurple.copy(alpha = 0.25f)) // Vibrant background instead of black
+                .border(0.5.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
                 .clickable {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     onToggleFavorite(channel)
@@ -127,23 +149,65 @@ fun ChannelCard(
             LottieAnimation(
                 composition = composition,
                 progress = { if (channel.isFavorite) progress else 0f },
-                modifier = Modifier.size(22.dp)
+                modifier = Modifier.size(24.dp)
             )
         }
 
-        Text(
-            text = channel.name,
-            color = Color.White,
-            style = MaterialTheme.typography.labelLarge.copy(
-                fontWeight = FontWeight.Bold,
-                fontSize = 13.sp,
-                letterSpacing = 0.5.sp
-            ),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+        // Live Indicator (Top Left)
+        Row(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(12.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color.Black.copy(alpha = 0.5f))
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .graphicsLayer { alpha = dotAlpha }
+                    .clip(CircleShape)
+                    .background(neonPurple)
+            )
+            Spacer(Modifier.width(4.dp))
+            Text(
+                text = "LIVE",
+                color = Color.White,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontWeight = FontWeight.Black,
+                    fontSize = 9.sp,
+                    letterSpacing = 1.sp
+                )
+            )
+        }
+
+        // Channel Info (Bottom)
+        Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(12.dp)
-        )
+                .padding(16.dp)
+        ) {
+            Text(
+                text = channel.name,
+                color = Color.White,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 16.sp,
+                    letterSpacing = 0.2.sp
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = channel.category.uppercase(),
+                color = neonPurple,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.2.sp,
+                    fontSize = 10.sp
+                )
+            )
+        }
     }
 }

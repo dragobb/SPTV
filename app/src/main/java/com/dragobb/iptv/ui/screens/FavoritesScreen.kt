@@ -1,12 +1,12 @@
 package com.dragobb.iptv.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -15,8 +15,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.dragobb.iptv.R
 import com.dragobb.iptv.ui.components.ChannelCard
 import com.dragobb.iptv.ui.models.Channel
 
@@ -35,6 +37,7 @@ fun FavoritesScreen(
     val memoizedOnToggleFavorite = remember(onToggleFavorite) { { channel: Channel -> onToggleFavorite(channel) } }
 
     Scaffold(
+        containerColor = Color.Transparent,
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
@@ -45,19 +48,20 @@ fun FavoritesScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onMenuClick()
-                    }) {
-                        Icon(Icons.Default.Menu, contentDescription = "Menu")
-                    }
+                    Image(
+                        painter = painterResource(id = R.drawable.app),
+                        contentDescription = "Logo",
+                        modifier = Modifier.padding(start = 16.dp).size(32.dp)
+                    )
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
+                    containerColor = Color.Transparent // Changed from MaterialTheme.colorScheme.background
+                ),
+                windowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 0.dp)
             )
         }
-    ) { innerPadding ->
+    ) {
+innerPadding ->
         if (favoriteChannels.isEmpty()) {
             EmptyFavoritesState()
         } else {

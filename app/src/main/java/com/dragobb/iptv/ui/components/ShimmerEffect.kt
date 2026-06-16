@@ -14,22 +14,22 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun ShimmerItem(
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val shimmerColors = listOf(
-        Color.White.copy(alpha = 0.05f),
-        Color.White.copy(alpha = 0.2f),
-        Color.White.copy(alpha = 0.05f),
+        Color(0xFF121212),
+        Color(0xFF1E1E1E),
+        Color(0xFF121212),
     )
 
-    val transition = rememberInfiniteTransition(label = "shimmer")
+    val transition = rememberInfiniteTransition(label = "premiumShimmer")
     val translateAnim = transition.animateFloat(
         initialValue = 0f,
-        targetValue = 1000f,
+        targetValue = 1200f,
         animationSpec = infiniteRepeatable(
             animation = tween(
-                durationMillis = 1200,
-                easing = FastOutSlowInEasing
+                durationMillis = 1500,
+                easing = LinearOutSlowInEasing
             ),
             repeatMode = RepeatMode.Restart
         ),
@@ -44,7 +44,7 @@ fun ShimmerItem(
 
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(24.dp))
             .background(brush)
     )
 }

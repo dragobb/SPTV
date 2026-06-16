@@ -3,7 +3,6 @@ package com.dragobb.iptv
 import android.app.Application
 import android.content.res.Configuration
 import android.app.PictureInPictureParams
-import android.os.Build
 import android.os.Bundle
 import android.util.Rational
 import androidx.activity.ComponentActivity
@@ -11,22 +10,20 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.annotation.OptIn
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -62,8 +59,13 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
+// Global Premium Colors
+val NeonPurple = Color(0xFF8E5AFF)
+val DeepBlack = Color(0xFF080808)
+val DarkSurface = Color(0xFF121212)
+
 class MainActivity : ComponentActivity() {
-    private var isCurrentlyPlaying by mutableStateOf(false)
+    private var isCurrentlyPlaying by mutableStateOf(value = false)
     private var isSystemPiP by mutableStateOf(false)
 
     @OptIn(FlowPreview::class)
@@ -87,16 +89,18 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             val context = LocalContext.current
-            val database = remember { AppDatabase.getDatabase(context) }
-            val repository = remember { IptvRepository(context, database.channelDao()) }
+            val appContext = context.applicationContext
+            val database = remember { AppDatabase.getDatabase(appContext) }
+            val repository = remember { IptvRepository(appContext, database.channelDao()) }
 
             val viewModel: IptvViewModel = viewModel(
                 factory = IptvViewModelFactory(
-                    application = context.applicationContext as Application,
+                    application = appContext as Application,
                     repository = repository,
                     favoritesDao = database.favoritesDao(),
                     recentChannelDao = database.recentChannelDao(),
-                    playlistDao = database.playlistDao()
+                    playlistDao = database.playlistDao(),
+                    searchHistoryDao = database.searchHistoryDao(),
                 )
             )
 
@@ -119,12 +123,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun enterPiPMode() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val params = PictureInPictureParams.Builder()
-                .setAspectRatio(Rational(16, 9))
-                .build()
-            enterPictureInPictureMode(params)
-        }
+        val params = PictureInPictureParams.Builder()
+            .setAspectRatio(Rational(16, 9))
+            .build()
+        enterPictureInPictureMode(params)
     }
 }
 
@@ -143,14 +145,13 @@ fun IPTVApp(
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val isPlayerMinimized by viewModel.isPlayerMinimized.collectAsStateWithLifecycle()
     val viewMode by viewModel.viewMode.collectAsStateWithLifecycle()
+    val searchHistory by viewModel.searchHistory.collectAsStateWithLifecycle()
     val isBuffering by viewModel.isBuffering.collectAsStateWithLifecycle()
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
 
     var currentDestination by remember { mutableStateOf(AppDestinations.HOME) }
-    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
-    var isCategoriesExpanded by remember { mutableStateOf(false) }
 
     var offsetX by remember { mutableFloatStateOf(0f) }
     var offsetY by remember { mutableFloatStateOf(0f) }
@@ -171,15 +172,16 @@ fun IPTVApp(
                         viewModel.clearError()
                         if (selectedChannel != null) viewModel.selectChannel(null)
                     },
+                    colors = ButtonDefaults.buttonColors(containerColor = NeonPurple),
                     shape = RoundedCornerShape(12.dp)
-                ) { Text("OK") }
+                ) { Text("OK", color = Color.White) }
             },
-            containerColor = MaterialTheme.colorScheme.surface,
+            containerColor = DarkSurface,
             shape = RoundedCornerShape(24.dp)
         )
     }
 
-    if (isInSystemPiP && selectedChannel != null) {
+    if (isInSystemPiP && (selectedChannel != null)) {
         VideoPlayer(
             exoPlayer = viewModel.exoPlayer,
             channelName = selectedChannel?.name ?: "Unknown Channel",
@@ -188,109 +190,62 @@ fun IPTVApp(
             modifier = Modifier.fillMaxSize()
         )
     } else {
-        ModalNavigationDrawer(
-            drawerState = drawerState,
-            gesturesEnabled = selectedChannel == null || isPlayerMinimized,
-            drawerContent = {
-                ModalDrawerSheet(
-                    drawerContainerColor = Color(0xFF0F0F0F), // Netflix-style deep black
-                    drawerShape = RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp),
-                    modifier = Modifier.width(300.dp)
+        Scaffold(
+            containerColor = DeepBlack,
+            bottomBar = {
+                NavigationBar(
+                    containerColor = DeepBlack,
+                    tonalElevation = 8.dp,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+                        .border(0.5.dp, Color.White.copy(0.05f), RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
                 ) {
-                    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
-                        Spacer(Modifier.height(56.dp))
-                        
-                        // Premium Header Branding
-                        Text(
-                            "STAIRPLAY",
-                            style = MaterialTheme.typography.headlineSmall.copy(
-                                fontWeight = FontWeight.Black,
-                                letterSpacing = 3.sp
-                            ),
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(horizontal = 12.dp)
-                        )
-                        Text(
-                            "PREMIUM TV",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.sp
-                            ),
-                            color = Color.White.copy(alpha = 0.4f),
-                            modifier = Modifier.padding(horizontal = 12.dp)
-                        )
-                        
-                        Spacer(Modifier.height(40.dp))
-
-                        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-                            AppDestinations.entries.forEach { destination ->
-                                NavigationItem(destination.label, destination.icon, currentDestination == destination) {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    currentDestination = destination
-                                    scope.launch { drawerState.close() }
-                                }
-                                Spacer(Modifier.height(4.dp))
-                            }
-
-                            Spacer(Modifier.height(24.dp))
-                            HorizontalDivider(color = Color.White.copy(0.05f), thickness = 0.5.dp)
-                            Spacer(Modifier.height(24.dp))
-
-                            // Collapsible Categories Header
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .clickable {
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        isCategoriesExpanded = !isCategoriesExpanded
-                                    }
-                                    .padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(Icons.Default.Category, null, tint = Color.White.copy(alpha = 0.6f))
-                                Spacer(Modifier.width(12.dp))
-                                Text(
-                                    "CATEGORIES",
-                                    style = MaterialTheme.typography.labelLarge.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        letterSpacing = 1.sp
-                                    ),
-                                    color = Color.White.copy(alpha = 0.8f),
-                                    modifier = Modifier.weight(1f)
-                                )
+                    AppDestinations.entries.forEach { destination ->
+                        val isSelected = currentDestination == destination
+                        NavigationBarItem(
+                            selected = isSelected,
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                currentDestination = destination
+                            },
+                            icon = {
                                 Icon(
-                                    if (isCategoriesExpanded) Icons.Default.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                    null,
-                                    tint = Color.White.copy(alpha = 0.4f),
-                                    modifier = Modifier.size(20.dp)
+                                    imageVector = destination.icon,
+                                    contentDescription = destination.label,
+                                    tint = if (isSelected) NeonPurple else Color.Gray
                                 )
-                            }
-
-                            AnimatedVisibility(
-                                visible = isCategoriesExpanded,
-                                enter = expandVertically(),
-                                exit = shrinkVertically()
-                            ) {
-                                Column(modifier = Modifier.padding(top = 8.dp)) {
-                                    if (uiState is IptvUiState.Success) {
-                                        (uiState as IptvUiState.Success).categories.forEach { category ->
-                                            CategoryItem(category, selectedCategory == category) {
-                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                viewModel.setCategory(category)
-                                                currentDestination = AppDestinations.HOME
-                                                scope.launch { drawerState.close() }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                            },
+                            label = {
+                                Text(
+                                    text = destination.label,
+                                    color = if (isSelected) Color.White else Color.Gray,
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium)
+                                )
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                indicatorColor = NeonPurple.copy(alpha = 0.1f)
+                            )
+                        )
                     }
                 }
             }
-        ) {
-            Box(modifier = Modifier.fillMaxSize()) {
+        ) { padding ->
+            // Main Content Area with Neon Aura Background
+            Box(modifier = Modifier.fillMaxSize().background(DeepBlack)) {
+                // Background Gradient Aura
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding())
+                        .background(
+                            Brush.radialGradient(
+                                colors = listOf(NeonPurple.copy(alpha = 0.08f), Color.Transparent),
+                                center = androidx.compose.ui.geometry.Offset(0f, 0f),
+                                radius = 1500f
+                            )
+                        )
+                )
+
                 Box(modifier = Modifier.fillMaxSize()) {
                     when (val state = uiState) {
                         is IptvUiState.Loading -> HomeScreen(
@@ -301,30 +256,40 @@ fun IPTVApp(
                             selectedCategory = selectedCategory,
                             searchQuery = searchQuery,
                             viewMode = viewMode,
+                            searchHistory = searchHistory,
                             onSearchQueryChange = { viewModel.setSearchQuery(it) },
+                            onClearSearchHistory = { viewModel.clearSearchHistory() },
+                            onDeleteSearchItem = { viewModel.deleteSearchItem(it) },
                             onChannelClick = {},
                             onToggleFavorite = {},
                             onRefresh = { viewModel.refreshChannels() },
-                            onMenuClick = { scope.launch { drawerState.open() } }
+                            onMenuClick = { /* No longer needed */ }
                         )
                         is IptvUiState.Success -> {
                             when (currentDestination) {
-                                AppDestinations.HOME -> HomeScreen(
+                                AppDestinations.HOME, AppDestinations.EXPLORE -> HomeScreen(
                                     isLoading = false,
                                     channels = state.channels,
                                     recentChannels = recentChannels,
+                                    favoriteChannels = favoriteChannels, // Pass favorites
                                     country = state.country,
                                     selectedCategory = selectedCategory,
                                     searchQuery = searchQuery,
                                     viewMode = viewMode,
+                                    searchHistory = searchHistory,
+                                    categories = state.categories,
+                                    onCategoryClick = { viewModel.setCategory(it) },
                                     onSearchQueryChange = { viewModel.setSearchQuery(it) },
+                                    onClearSearchHistory = { viewModel.clearSearchHistory() },
+                                    onDeleteSearchItem = { viewModel.deleteSearchItem(it) },
                                     onChannelClick = { viewModel.selectChannel(it) },
                                     onToggleFavorite = { viewModel.toggleFavorite(it) },
                                     onRefresh = { viewModel.refreshChannels() },
-                                    onMenuClick = { scope.launch { drawerState.open() } }
+                                    onMenuClick = { /* No longer needed */ },
+                                    isExploreMode = currentDestination == AppDestinations.EXPLORE
                                 )
-                                AppDestinations.FAVORITES -> FavoritesScreen(favoriteChannels, {viewModel.selectChannel(it)}, {viewModel.toggleFavorite(it)}, {scope.launch { drawerState.open() }})
-                                AppDestinations.SETTINGS -> SettingsScreen(viewModel, {scope.launch { drawerState.open() }})
+                                AppDestinations.FAVORITES -> FavoritesScreen(favoriteChannels, {viewModel.selectChannel(it)}, {viewModel.toggleFavorite(it)}, {})
+                                AppDestinations.SETTINGS -> SettingsScreen(viewModel) {}
                             }
                         }
                     }
@@ -354,9 +319,9 @@ fun IPTVApp(
                                 .padding(16.dp)
                                 .width(220.dp)
                                 .height(124.dp)
-                                .clip(RoundedCornerShape(16.dp))
+                                .clip(RoundedCornerShape(24.dp))
                                 .background(Color.Black)
-                                .border(1.dp, Color.White.copy(0.2f), RoundedCornerShape(16.dp))
+                                .border(1.dp, NeonPurple.copy(0.3f), RoundedCornerShape(24.dp))
                                 .pointerInput(Unit) {
                                     detectDragGestures { change, dragAmount ->
                                         change.consume()
@@ -384,105 +349,9 @@ fun IPTVApp(
     }
 }
 
-@Composable
-fun CategoryItem(category: String, isSelected: Boolean, onClick: () -> Unit) {
-    val scale by animateFloatAsState(targetValue = if (isSelected) 1.05f else 1f, label = "catScale")
-    val icon = remember(category) {
-        when {
-            category.contains("Movie", true) -> Icons.Default.Movie
-            category.contains("Sport", true) -> Icons.Default.SportsEsports
-            category.contains("News", true) -> Icons.Default.Newspaper
-            category.contains("Philippines", true) -> Icons.Default.Flag
-            else -> Icons.Default.Tv
-        }
-    }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .clickable { onClick() }
-            .padding(vertical = 8.dp, horizontal = 12.dp)
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            },
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            icon,
-            null,
-            tint = if (isSelected) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.5f),
-            modifier = Modifier.size(18.dp)
-        )
-        Spacer(Modifier.width(12.dp))
-        Text(
-            category,
-            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.5f),
-            style = MaterialTheme.typography.bodyMedium.copy(
-                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                fontSize = 14.sp
-            )
-        )
-    }
-}
-
-@Composable
-fun NavigationItem(label: String, icon: ImageVector, isSelected: Boolean, onClick: () -> Unit) {
-    val scale by animateFloatAsState(targetValue = if (isSelected) 1.05f else 1f, label = "scale")
-    val alpha by animateFloatAsState(targetValue = if (isSelected) 1f else 0.7f, label = "alpha")
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(52.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .clickable { onClick() }
-            .background(
-                if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                else Color.Transparent
-            ),
-        contentAlignment = Alignment.CenterStart
-    ) {
-        // Vertical indicator strip
-        if (isSelected) {
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight(0.5f)
-                    .width(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(MaterialTheme.colorScheme.primary)
-            )
-        }
-
-        Row(
-            modifier = Modifier
-                .padding(start = 16.dp)
-                .graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
-                },
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                icon,
-                null,
-                tint = if (isSelected) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.7f),
-                modifier = Modifier.size(24.dp)
-            )
-            Spacer(Modifier.width(16.dp))
-            Text(
-                label,
-                color = if (isSelected) Color.White else Color.White.copy(alpha = 0.7f),
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                    letterSpacing = 0.2.sp
-                ),
-                modifier = Modifier.graphicsLayer { this.alpha = alpha }
-            )
-        }
-    }
-}
-
 enum class AppDestinations(val label: String, val icon: ImageVector) {
-    HOME("Home", Icons.Default.Home), FAVORITES("Favorites", Icons.Default.Favorite), SETTINGS("Settings", Icons.Default.Settings)
+    HOME("Home", Icons.Default.Home), 
+    EXPLORE("Explore", Icons.Default.Explore),
+    FAVORITES("Favorites", Icons.Default.Favorite), 
+    SETTINGS("Settings", Icons.Default.Settings)
 }
