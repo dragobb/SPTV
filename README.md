@@ -41,7 +41,7 @@ The app comes pre-configured with high-quality channel sources for the following
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/dragobb/StairPlay.git
+   git clone https://github.com/dragobb/SPTV.git
    ```
 2. **Open in Android Studio**:
    - Recommended Version: **Android Studio Ladybug (2024.2.1)** or higher.
