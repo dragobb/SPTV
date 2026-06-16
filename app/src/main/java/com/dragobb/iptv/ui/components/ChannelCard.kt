@@ -9,6 +9,9 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -98,22 +101,30 @@ fun ChannelCard(
             }
     ) {
         // Channel Thumbnail / Logo
-        AsyncImage(
-            model = ImageRequest.Builder(context)
-                .data(channel.logoUrl)
-                .crossfade(true)
-                .diskCachePolicy(CachePolicy.ENABLED)
-                .memoryCachePolicy(CachePolicy.ENABLED)
-                .build(),
-            contentDescription = channel.name,
-            placeholder = painterResource(R.drawable.monitor),
-            error = painterResource(R.drawable.monitor),
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp) // Adjusted padding for poster style
-                .graphicsLayer { alpha = 0.9f },
-            contentScale = ContentScale.Fit
-        )
+                .padding(16.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color.White.copy(alpha = 0.05f)), // Subtle background shade for logo
+            contentAlignment = Alignment.Center
+        ) {
+            AsyncImage(
+                model = ImageRequest.Builder(context)
+                    .data(channel.logoUrl)
+                    .crossfade(true)
+                    .diskCachePolicy(CachePolicy.ENABLED)
+                    .memoryCachePolicy(CachePolicy.ENABLED)
+                    .build(),
+                contentDescription = channel.name,
+                placeholder = painterResource(R.drawable.monitor),
+                error = painterResource(R.drawable.monitor),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { alpha = 0.9f },
+                contentScale = ContentScale.Fit
+            )
+        }
 
         // Cinematic Gradient Overlay
         Box(
@@ -138,7 +149,7 @@ fun ChannelCard(
                 .padding(12.dp)
                 .size(36.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(neonPurple.copy(alpha = 0.25f)) // Vibrant background instead of black
+                .background(neonPurple.copy(alpha = 0.25f)) // Vibrant background
                 .border(0.5.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
                 .clickable {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -146,10 +157,11 @@ fun ChannelCard(
                 },
             contentAlignment = Alignment.Center
         ) {
-            LottieAnimation(
-                composition = composition,
-                progress = { if (channel.isFavorite) progress else 0f },
-                modifier = Modifier.size(24.dp)
+            Icon(
+                imageVector = if (channel.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                contentDescription = null,
+                tint = if (channel.isFavorite) Color.Red else Color.White,
+                modifier = Modifier.size(20.dp)
             )
         }
 

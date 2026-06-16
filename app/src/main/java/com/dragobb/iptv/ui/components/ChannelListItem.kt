@@ -9,6 +9,9 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -108,7 +111,7 @@ fun ChannelListItem(
                     .padding(8.dp)
                     .size(70.dp)
                     .clip(RoundedCornerShape(20.dp))
-                    .background(Color.Black.copy(alpha = 0.4f)),
+                    .background(Color.White.copy(alpha = 0.05f)), // Subtle background shade for logo
                 contentAlignment = Alignment.Center
             ) {
                 AsyncImage(
@@ -177,9 +180,10 @@ fun ChannelListItem(
                 },
                 modifier = Modifier.size(44.dp)
             ) {
-                LottieAnimation(
-                    composition = composition,
-                    progress = { if (channel.isFavorite) progress else 0f },
+                Icon(
+                    imageVector = if (channel.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                    contentDescription = null,
+                    tint = if (channel.isFavorite) Color.Red else Color.White,
                     modifier = Modifier.size(24.dp)
                 )
             }

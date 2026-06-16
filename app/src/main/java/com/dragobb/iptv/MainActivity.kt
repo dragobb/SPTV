@@ -48,6 +48,7 @@ import coil.memory.MemoryCache
 import com.dragobb.iptv.data.IptvRepository
 import com.dragobb.iptv.data.local.AppDatabase
 import com.dragobb.iptv.ui.components.VideoPlayer
+import com.dragobb.iptv.ui.components.findActivity
 import com.dragobb.iptv.ui.screens.FavoritesScreen
 import com.dragobb.iptv.ui.screens.HomeScreen
 import com.dragobb.iptv.ui.screens.SettingsScreen
@@ -149,6 +150,7 @@ fun IPTVApp(
     val isBuffering by viewModel.isBuffering.collectAsStateWithLifecycle()
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
 
+    val context = LocalContext.current
     var currentDestination by remember { mutableStateOf(AppDestinations.HOME) }
     val scope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
@@ -157,6 +159,8 @@ fun IPTVApp(
     var offsetY by remember { mutableFloatStateOf(0f) }
 
     BackHandler(enabled = selectedChannel != null) {
+        val act = context.findActivity()
+        act?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         viewModel.selectChannel(null)
     }
 
@@ -181,12 +185,17 @@ fun IPTVApp(
         )
     }
 
-    if (isInSystemPiP && (selectedChannel != null)) {
+    if (selectedChannel != null && !isPlayerMinimized) {
         VideoPlayer(
             exoPlayer = viewModel.exoPlayer,
             channelName = selectedChannel?.name ?: "Unknown Channel",
             isBuffering = isBuffering,
-            onBack = { viewModel.selectChannel(null) },
+            onBack = { 
+                val act = context.findActivity()
+                act?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                viewModel.selectChannel(null) 
+            },
+            onMiniPlayer = onEnterPiP,
             modifier = Modifier.fillMaxSize()
         )
     } else {
@@ -299,53 +308,42 @@ fun IPTVApp(
                     }
                 }
 
-                if (selectedChannel != null) {
-                    if (!isPlayerMinimized) {
+                if (selectedChannel != null && isPlayerMinimized) {
+                    val config = LocalConfiguration.current
+                    val density = LocalDensity.current
+                    val screenW = with(density) { config.screenWidthDp.dp.toPx() }
+                    val screenH = with(density) { config.screenHeightDp.dp.toPx() }
+
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .navigationBarsPadding()
+                            .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
+                            .padding(16.dp)
+                            .width(220.dp)
+                            .height(124.dp)
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(Color.Black)
+                            .border(1.dp, NeonPurple.copy(0.3f), RoundedCornerShape(24.dp))
+                            .pointerInput(Unit) {
+                                detectDragGestures { change, dragAmount ->
+                                    change.consume()
+                                    offsetX = (offsetX + dragAmount.x).coerceIn(-screenW + 300f, 0f)
+                                    offsetY = (offsetY + dragAmount.y).coerceIn(-screenH + 400f, 0f)
+                                }
+                            }
+                            .clickable { viewModel.setPlayerMinimized(false) }
+                    ) {
                         VideoPlayer(
                             exoPlayer = viewModel.exoPlayer,
                             channelName = selectedChannel?.name ?: "Unknown Channel",
                             isBuffering = isBuffering,
+                            isMinimized = true,
                             onBack = { viewModel.selectChannel(null) },
-                            onMiniPlayer = onEnterPiP,
+                            onClose = { viewModel.selectChannel(null) },
+                            onExpand = { viewModel.setPlayerMinimized(false) },
                             modifier = Modifier.fillMaxSize()
                         )
-                    } else {
-                        val config = LocalConfiguration.current
-                        val density = LocalDensity.current
-                        val screenW = with(density) { config.screenWidthDp.dp.toPx() }
-                        val screenH = with(density) { config.screenHeightDp.dp.toPx() }
-
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.BottomEnd)
-                                .navigationBarsPadding()
-                                .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
-                                .padding(16.dp)
-                                .width(220.dp)
-                                .height(124.dp)
-                                .clip(RoundedCornerShape(24.dp))
-                                .background(Color.Black)
-                                .border(1.dp, NeonPurple.copy(0.3f), RoundedCornerShape(24.dp))
-                                .pointerInput(Unit) {
-                                    detectDragGestures { change, dragAmount ->
-                                        change.consume()
-                                        offsetX = (offsetX + dragAmount.x).coerceIn(-screenW + 300f, 0f)
-                                        offsetY = (offsetY + dragAmount.y).coerceIn(-screenH + 400f, 0f)
-                                    }
-                                }
-                                .clickable { viewModel.setPlayerMinimized(false) }
-                        ) {
-                            VideoPlayer(
-                                exoPlayer = viewModel.exoPlayer,
-                                channelName = selectedChannel?.name ?: "Unknown Channel",
-                                isBuffering = isBuffering,
-                                isMinimized = true,
-                                onBack = { viewModel.selectChannel(null) },
-                                onClose = { viewModel.selectChannel(null) },
-                                onExpand = { viewModel.setPlayerMinimized(false) },
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
                     }
                 }
             }

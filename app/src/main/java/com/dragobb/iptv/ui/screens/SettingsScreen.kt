@@ -320,7 +320,7 @@ fun AboutDialog(onDismiss: () -> Unit) {
         text = {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    "A premium, high-performance IPTV streaming application built with Jetpack Compose.",
+                    "A premium IPTV streaming application built with 💖.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color.Gray,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
