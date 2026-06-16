@@ -38,6 +38,7 @@ fun FavoritesScreen(
 
     Scaffold(
         containerColor = Color.Transparent,
+        contentWindowInsets = WindowInsets(0.dp),
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
@@ -57,11 +58,10 @@ fun FavoritesScreen(
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = Color.Transparent // Changed from MaterialTheme.colorScheme.background
                 ),
-                windowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 0.dp)
+                windowInsets = TopAppBarDefaults.windowInsets
             )
         }
-    ) {
-innerPadding ->
+    ) { innerPadding ->
         if (favoriteChannels.isEmpty()) {
             EmptyFavoritesState()
         } else {

@@ -142,6 +142,7 @@ fun HomeScreen(
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = Color.Transparent,
+        contentWindowInsets = WindowInsets(0.dp), // Fix for top margin
         topBar = {
             TopAppBar(
                 title = {
@@ -235,7 +236,7 @@ fun HomeScreen(
                     containerColor = Color.Transparent,
                     scrolledContainerColor = bgColor.copy(alpha = 0.95f)
                 ),
-                windowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 0.dp) // Force no extra insets
+                windowInsets = TopAppBarDefaults.windowInsets // Let TopAppBar handle status bar
             )
         }
     ) { innerPadding ->

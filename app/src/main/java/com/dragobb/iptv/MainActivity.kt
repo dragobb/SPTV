@@ -231,12 +231,16 @@ fun IPTVApp(
             }
         ) { padding ->
             // Main Content Area with Neon Aura Background
-            Box(modifier = Modifier.fillMaxSize().background(DeepBlack)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(bottom = padding.calculateBottomPadding()) // Boundary for Bottom Nav
+                    .background(DeepBlack)
+            ) {
                 // Background Gradient Aura
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding())
                         .background(
                             Brush.radialGradient(
                                 colors = listOf(NeonPurple.copy(alpha = 0.08f), Color.Transparent),

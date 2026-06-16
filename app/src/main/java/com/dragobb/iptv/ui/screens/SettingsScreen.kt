@@ -54,12 +54,15 @@ fun SettingsScreen(
     
     var showAddUrlDialog by remember { mutableStateOf(false) }
     var newUrlInput by remember { mutableStateOf("") }
+    
+    var showAboutDialog by remember { mutableStateOf(false) }
 
     val neonPurple = Color(0xFF8E5AFF)
     val deepBlack = Color(0xFF080808)
 
     Scaffold(
         containerColor = deepBlack,
+        contentWindowInsets = WindowInsets(0.dp),
         topBar = {
             TopAppBar(
                 title = { 
@@ -80,7 +83,7 @@ fun SettingsScreen(
                     containerColor = Color.Transparent,
                     scrolledContainerColor = deepBlack.copy(alpha = 0.9f)
                 ),
-                windowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 0.dp)
+                windowInsets = TopAppBarDefaults.windowInsets
             )
         }
     ) { innerPadding ->
@@ -181,6 +184,20 @@ fun SettingsScreen(
             )
             DividerLine()
 
+            // --- App Info Section ---
+            SettingsHeader("App Info")
+            
+            SettingsActionItem(
+                title = "About StairPlay",
+                description = "Version 1.0.0 • ABServices",
+                icon = Icons.Default.Info,
+                onClick = { 
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    showAboutDialog = true
+                }
+            )
+            DividerLine()
+
             Spacer(Modifier.height(120.dp))
         }
     }
@@ -262,6 +279,83 @@ fun SettingsScreen(
             dismissButton = { TextButton(onClick = { showPinDialog = false }) { Text("Cancel", color = Color.Gray) } }
         )
     }
+
+    if (showAboutDialog) {
+        AboutDialog(onDismiss = { showAboutDialog = false })
+    }
+}
+
+@Composable
+fun AboutDialog(onDismiss: () -> Unit) {
+    val neonPurple = Color(0xFF8E5AFF)
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF121212),
+        shape = RoundedCornerShape(28.dp),
+        title = {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.app),
+                    contentDescription = null,
+                    modifier = Modifier.size(64.dp).clip(RoundedCornerShape(16.dp))
+                )
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    "StairPlay TV",
+                    fontWeight = FontWeight.Black,
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = Color.White
+                )
+                Text(
+                    "Version 1.0.0 (Stable)",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = neonPurple
+                )
+            }
+        },
+        text = {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    "A premium, high-performance IPTV streaming application built with Jetpack Compose.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.Gray,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+                Spacer(Modifier.height(24.dp))
+                Text(
+                    "Created by",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(0.4f)
+                )
+                Text(
+                    "ABServices",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "© 2026 All Rights Reserved",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.Gray
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(containerColor = neonPurple),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Text("Close", color = Color.White, fontWeight = FontWeight.Bold)
+            }
+        }
+    )
 }
 
 @Composable
