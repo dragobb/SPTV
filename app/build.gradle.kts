@@ -40,6 +40,30 @@ android {
     }
 }
 
+// Universal APK Auto-Copy Task by ABServices
+tasks.whenTaskAdded {
+    if (name.startsWith("assemble")) {
+        val buildType = name.removePrefix("assemble").lowercase()
+        val copyTaskName = "copy${buildType.replaceFirstChar { it.uppercase() }}Apk"
+        
+        if (tasks.findByName(copyTaskName) == null) {
+            tasks.register<Copy>(copyTaskName) {
+                from("$buildDir/outputs/apk/$buildType")
+                into("${project.rootDir}/apk")
+                include("*.apk")
+                rename { fileName ->
+                    "StairPlay-${buildType}.apk"
+                }
+                
+                doLast {
+                    println("🚀 Universal APK copied to: root/apk/StairPlay-${buildType}.apk")
+                }
+            }
+        }
+        finalizedBy(copyTaskName)
+    }
+}
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
