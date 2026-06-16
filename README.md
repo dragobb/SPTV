@@ -2,6 +2,8 @@
 
 A premium, high-performance IPTV streaming application for Android, built with the latest modern technologies like **Jetpack Compose**, **Material 3**, and **Media3/ExoPlayer**.
 
+[Click here to download the app](https://github.com/dragobb/SPTV/releases/latest)
+
 ## 🚀 Key Features
 
 - **Premium UI/UX**: Ultra-modern dark mode design with Neon Purple accents, smooth transitions, and high-quality animations.
@@ -56,7 +58,7 @@ The app comes pre-configured with high-quality channel sources for the following
 2. **Browsing**: Swipe through the **Featured Spotlight** in the Explore tab to find trending channels.
 3. **Search**: Click the Search icon in the header. The title will animate away, giving you a full search field.
 4. **Favorites**: Tap the Heart icon on any channel card. A **Hollow Heart** means it's not saved, while a **Solid Red Heart** means it's in your favorites list.
-5. **Parental Control**: Go to **Settings -> Safe Mode**. Set or enter your PIN to toggle the adult content filter.
+5. **Parental Control**: Go to **Settings -> Safe Mode**. Enter 1234 as PIN to toggle the adult content filter.
 6. **Custom Sources**: Have your own link? Go to **Settings -> Manage Playlists** and paste your M3U URL.
 
 ## 🤝 Contributing
